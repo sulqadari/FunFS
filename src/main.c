@@ -1,4 +1,4 @@
-#include "flash_emu.h"
+#include "funfs.h"
 
 uint8_t tempData[] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
 uint8_t tempAnsr[16];
@@ -20,7 +20,7 @@ int
 main(int argc, char* argv[])
 {
 	mmg_init();
-
+	printf("INode size: %d\n", sizeof(Inode));
 	for (uint32_t i = 0; i < FLASH_SIZE_TOTAL; i += sizeof(tempAnsr)) {
 		if(mmg_read(i, tempAnsr, sizeof(tempAnsr)) != fmr_Ok) {
 			fprintf(stderr, "EFFOR: failed to read from index %d\n", i);

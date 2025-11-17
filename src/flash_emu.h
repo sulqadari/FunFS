@@ -6,9 +6,9 @@
 #include <stdlib.h>
 
 
-#define PAGE_SIZE (4)
+#define PAGE_SIZE (32)
 #define PAGES_TOTAL (64)
-#define FLASH_SIZE_TOTAL (PAGES_TOTAL * PAGE_SIZE) // 64 KBytes
+#define FLASH_SIZE_TOTAL (PAGES_TOTAL * PAGE_SIZE)
 
 typedef enum {
 	fmr_Ok,
