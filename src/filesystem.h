@@ -2,16 +2,7 @@
 #define ISO_FILESYSTEM_H
 
 #include <stdint.h>
-
-#define PAGE_SIZE (256)
-#define PAGES_TOTAL (64)
-#define ALLOCATED_MEMORY  (PAGES_TOTAL * PAGE_SIZE) // 16 KBytes
-
-/** 10% of all available flash memory goes to iNodes Table */
-#define INODES_TABLE_SIZE (((ALLOCATED_MEMORY / PAGE_SIZE) * 10) / 100)
-
-/** (allocated memory - iNodes Table) - SuperBlock = a space available for user data. */
-#define DATA_REGION_TOTAL ((ALLOCATED_MEMORY / PAGE_SIZE) - INODES_TABLE_SIZE)
+#include "flashmngr.h"
 
 typedef enum {
 	ft_DF, // Dedicated file
@@ -52,8 +43,8 @@ typedef struct {
 	SuperBlock super;
 	InodeBmp   inBmp;
 	DataBlkBmp dbBmp;
-	Inode      iNodeTable[INODES_TABLE_SIZE]; // 6
-	DataBlk    dataRegion[DATA_REGION_TOTAL];	// 57
+	Inode      iNodeTable[1]; // 57
+	DataBlk    dataRegion[DATABLOCKS_TOTAL];	// 57
 } FileSystem;
 
 #endif /* ISO_FILESYSTEM_H */
