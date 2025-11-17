@@ -33,8 +33,7 @@ typedef struct {
 /** User data */
 typedef struct {
 	uint32_t length;
-	uint32_t* next;
-	uint8_t page[PAGE_SIZE - 8];
+	uint32_t start;
 } DataBlk;
 
 typedef struct {
@@ -60,8 +59,8 @@ typedef struct {
 	SuperBlock super;
 	InodeBmp   inBmp;
 	DataBlkBmp dbBmp;
-	Inode      iNodeTable[(PAGE_SIZE * 6) / sizeof(Inode)];
-	DataBlk    dataBlks[57];
+	Inode      iNodeTable;
+	DataBlk    dataBlks;
 } FileSystem;
 
 /** Used as entry in dedicated file's data block.
