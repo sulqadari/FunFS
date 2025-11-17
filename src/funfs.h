@@ -1,8 +1,10 @@
-#ifndef ISO_FILESYSTEM_H
-#define ISO_FILESYSTEM_H
+#ifndef FUNFS_FILESYSTEM_H
+#define FUNFS_FILESYSTEM_H
 
 #include <stdint.h>
-#include "flashmngr.h"
+#include "flash_emu.h"
+
+extern uint8_t flash_emu[];
 
 typedef enum {
 	ft_DF, // Dedicated file
@@ -43,8 +45,8 @@ typedef struct {
 	SuperBlock super;
 	InodeBmp   inBmp;
 	DataBlkBmp dbBmp;
-	Inode      iNodeTable[1]; // 57
-	DataBlk    dataRegion[DATABLOCKS_TOTAL];	// 57
+	Inode      iNodeTable;
+	DataBlk    dataRegion;
 } FileSystem;
 
-#endif /* ISO_FILESYSTEM_H */
+#endif /* FUNFS_FILESYSTEM_H */
