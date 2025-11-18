@@ -28,21 +28,12 @@ typedef struct {
 	uint32_t data_blk_ptr;	// points to the associated data block
 } Inode;
 
-/** User data */
-typedef struct {
-	uint32_t curr;
-	uint32_t len;
-	uint32_t prev;
-} DataBlk;
-
 typedef struct {
 	uint32_t magic;
 	uint32_t inodes_total;
-	uint32_t data_blocks_total;
 	uint16_t inodes_count;
-	uint16_t data_blocks_count;
 	Inode*   inodes_start;
-	DataBlk* data_blocks_start;
+	uint32_t data_blocks_start;
 } SuperBlock;
 
 /** Used as entry in dedicated file's data block.

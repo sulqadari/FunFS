@@ -7,10 +7,16 @@ static FILE*       aFile        = NULL;
 uint32_t fs_start_addr = 0x00;
 uint8_t flash_emu[FLASH_SIZE_TOTAL];
 
-FMResult
+uint32_t
 mmg_allocate(uint32_t offset, uint16_t size)
 {
+	uint32_t address = 0;
 
+	do {
+
+	} while (0);
+
+	return address;
 }
 
 FMResult

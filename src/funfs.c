@@ -10,7 +10,7 @@ ffs_initialize(void)
 {
 	FMResult result = fmr_Err;
 	SuperBlock super;
-
+	uint32_t blocks_start_addr;
 	do {
 		
 		// Open (or create) persistent storage for a flash memory
@@ -18,7 +18,7 @@ ffs_initialize(void)
 			break;
 		
 		// Read the 'Super Block' and find out has the file system been initialized or not
-		if ((result = mmg_read(fs_start_addr, &super, sizeof(SuperBlock))) != fmr_Ok)
+		if ((result = mmg_read(fs_start_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
 			break;
 		
 		// The file system is already initialized. Bail out.
@@ -27,15 +27,20 @@ ffs_initialize(void)
 			
 		super.magic             = 0xCAFEBABE;
 		super.inodes_total      = 0x00;
-		super.data_blocks_total = 0x00;
 		super.inodes_count      = 0x00;
-		super.data_blocks_count = 0x00;
 		super.inodes_start      = (Inode*)WORD_ALIGNED(fs_start_addr + sizeof(SuperBlock));
-		super.data_blocks_start = (DataBlk*)PAGE_ALIGNED((uint32_t)super.inodes_start + PAGE_SIZE * 6);
+		super.data_blocks_start = (uint32_t)PAGE_ALIGNED((uint32_t)super.inodes_start + PAGE_SIZE * 6);
 
-		if ((result = mmg_write(fs_start_addr, &super, sizeof(SuperBlock))) != fmr_Ok)
+		if ((result = mmg_write(fs_start_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
 			break;
 		
+		uint32_t initial_block_size = FLASH_SIZE_TOTAL - super.data_blocks_start;
+
+		if ((blocks_start_addr = mmg_allocate(super.data_blocks_start, initial_block_size)) == 0) {
+			result = fmr_Err;
+			break;
+		}
+
 	} while (0);
 
 	return result;
@@ -49,7 +54,7 @@ store_inode(Inode* inode)
 	uint32_t address;
 
 	do {
-		if ((result = mmg_read(fs_start_addr, &super, sizeof(SuperBlock))) != fmr_Ok)
+		if ((result = mmg_read(fs_start_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
 			break;
 		
 		super.inodes_start;
@@ -149,6 +154,27 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 
 			if (result != fmr_Ok)
 				break;
+		}
+
+	} while (0);
+
+	return result;
+}
+
+static FMResult
+allocate_data_block(Inode* inode)
+{
+	FMResult result = fmr_Ok;
+	SuperBlock super;
+
+	do {
+		// Read the 'Super Block' and find out has the file system been initialized or not
+		if ((result = mmg_read(fs_start_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
+			break;
+		
+		if ((inode->data_blk_ptr = mmg_allocate(super.data_blocks_start, inode->size)) == 0x00){
+			result = fmr_Err;
+			break;
 		}
 
 	} while (0);
