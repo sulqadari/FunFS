@@ -4,26 +4,13 @@
 static const char* FLASH_BINARY = "FunFS.bin";
 static FILE*       aFile        = NULL;
 
+uint32_t fs_start_addr = 0x00;
 uint8_t flash_emu[FLASH_SIZE_TOTAL];
-uint32_t magic = 0xCAFEBABE;
 
-/* forward declaration */
-static uint8_t open_flash(void);
-static uint8_t update_flash(void);
-
-void
-mmg_init(void)
+FMResult
+mmg_allocate(uint32_t offset, uint16_t size)
 {
-	// if (memcmp(flash_emu, &magic, sizeof(magic))) {
-	// 	memset(flash_emu, 0xFF, FLASH_SIZE_TOTAL);
-	// }
 
-	// Zero-out memory
-	memset(flash_emu, 0xFF, FLASH_SIZE_TOTAL);
-	// Open or create persistent storage for a flash memory
-	open_flash();
-	// Write the magic
-	mmg_write(0, (uint8_t*)&magic, sizeof(magic));
 }
 
 FMResult
@@ -31,7 +18,7 @@ mmg_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
 	uint32_t bound = offset + data_len;
 	if (bound > FLASH_SIZE_TOTAL) {
-		return fmr_Err;
+		return fmr_writeErr;
 	}
 
 	memcpy(&flash_emu[offset], data, data_len);
@@ -43,7 +30,7 @@ mmg_read(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
 	uint32_t bound = offset + data_len;
 	if (bound > FLASH_SIZE_TOTAL) {
-		return fmr_Err;
+		return fmr_readErr;
 	}
 
 	memcpy(data, &flash_emu[offset], data_len);
@@ -54,54 +41,76 @@ mmg_read(uint32_t offset, uint8_t* data, uint16_t data_len)
  * Creates an 64 Kbyte flash memory simulation space.
  * If file already exists, it will be reused.
  */
-static uint8_t
-open_flash(void)
+FMResult
+mmg_open_flash(void)
 {
 	size_t bytesRead = 0;
-	uint8_t result = 0;
+	FMResult result = fmr_Ok;
 
-	if (aFile != NULL) {
-		return result;
-	}
+	do {
+		if (aFile != NULL) {
+			break;
+		}
+		memset(flash_emu, 0xFF, FLASH_SIZE_TOTAL);
 
-	aFile = fopen(FLASH_BINARY, "r+");
-	if (aFile != NULL) {
-		bytesRead = fread(flash_emu, 1, FLASH_SIZE_TOTAL, aFile);
-	} else {
-		aFile = fopen(FLASH_BINARY, "w");
-	}
+		result = fmr_Err;
+		aFile = fopen(FLASH_BINARY, "r+");
+		if (aFile != NULL) {
+			bytesRead = fread(flash_emu, 1, FLASH_SIZE_TOTAL, aFile);
+		} else {
+			aFile = fopen(FLASH_BINARY, "w");
+		}
 
-	if ((bytesRead != FLASH_SIZE_TOTAL) || (aFile == NULL)) {
-		result = 1;
-	}
+		if (bytesRead != FLASH_SIZE_TOTAL) {
+			result = fmr_readErr;
+			break;
+		}
+		if (aFile == NULL) {
+			result = fmr_fopenErr;
+			break;
+		}
+
+		result = fmr_Ok;
+	} while (0);
 
 	return result;
 }
 
-static uint8_t
+static FMResult
 update_flash(void)
 {
-	if (aFile == NULL) {
-		fprintf(stderr, "ERROR: can't update %s binary because file isn't openned yet.\n", FLASH_BINARY);
-		return 1;
-	}
+	FMResult result = fmr_Ok;
 
-	size_t written = fwrite(flash_emu, 1, FLASH_SIZE_TOTAL, aFile);
-	if (written < FLASH_SIZE_TOTAL) {
-		fprintf(stderr, "ERROR: couldn't update %s binary file.\n", FLASH_BINARY);
-		fclose(aFile);
-		return 1;
-	}
+	do {
+		if (aFile == NULL) {
+			fprintf(stderr, "ERROR: can't update %s binary because file isn't openned yet.\n", FLASH_BINARY);
+			result = fmr_Err;
+			break;
+		}
+	
+		size_t written = fwrite(flash_emu, 1, FLASH_SIZE_TOTAL, aFile);
+		if (written < FLASH_SIZE_TOTAL) {
+			fprintf(stderr, "ERROR: couldn't update %s binary file.\n", FLASH_BINARY);
+			fclose(aFile);
+			result = fmr_writeErr;
+			break;
+		}
+	
+		rewind(aFile);
+	} while (0);
 
-	rewind(aFile);
-	return 0;
+	return result;
 }
 
-void
-close_flash(void)
+FMResult
+mmg_close_flash(void)
 {
+	FMResult result = fmr_Ok;
+
 	if (aFile != NULL) {
-		update_flash();
+		result = update_flash();
 		fclose(aFile);
 	}
+
+	return result;
 }

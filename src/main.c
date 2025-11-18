@@ -16,10 +16,11 @@ print_hex(uint8_t* data, uint32_t len)
 	printf("\n");
 }
 
-int
-main(int argc, char* argv[])
+static uint8_t
+test_01(void)
 {
-	mmg_init();
+	mmg_open_flash();
+
 	printf("INode size: %d\n", sizeof(Inode));
 	for (uint32_t i = 0; i < FLASH_SIZE_TOTAL; i += sizeof(tempAnsr)) {
 		if(mmg_read(i, tempAnsr, sizeof(tempAnsr)) != fmr_Ok) {
@@ -46,6 +47,18 @@ main(int argc, char* argv[])
 		return 1;
 	}
 
-	close_flash();
+	mmg_close_flash();
 	return 0;
+}
+
+static uint8_t
+test_02(void)
+{
+	ffs_initialize();
+}
+
+int
+main(int argc, char* argv[])
+{
+	return test_01();
 }

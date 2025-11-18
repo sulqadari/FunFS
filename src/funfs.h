@@ -4,64 +4,46 @@
 #include <stdint.h>
 #include "flash_emu.h"
 
-typedef enum {
-	ft_DF, // Dedicated file
-	ft_EF, // Elementary file
-	ft_LF, // Linear Fixed file
-	ft_LV  // Linear Variable file
-} FileType;
+// allocate PERSENT percents for Inodes
+#define PERSENT 10
+#define INODES_TOTAL (((FLASH_SIZE_TOTAL * PERSENT) / 100) / sizeof(Inode))
 
 typedef enum {
-	cmd_Ok,
-	cmd_Error
-} FsCmdStatus;
+	ft_EF = 0x01, // Elementary file
+	ft_LF = 0x0C, // Linear Fixed file
+	ft_DF = 0x38, // Dedicated file
+} FileType;
 
 /** Keeps information about each file on the file system */
 typedef struct {
-	FileType type;
-	uint16_t id;
-	uint16_t size;			// how many bytes are occupied
-	uint32_t capacity;		// the total size of this file
-	// uint32_t blkCount;		// how many blocks have been allocated to this file?
-	uint32_t* blkPointer;	// points to the associated data block
+	uint16_t size;			// 0x80; File size (EF only)
+	uint8_t  desc[5];		// 0x82; file descriptor (e.g. DF, EF, LF, etc.)
+	uint16_t fid;			// 0x83; file ID   (e.g. 3F00, 0101, etc.)
+	uint8_t  aid[16];		// 0x84; application AID (DF only)
+	uint8_t  sfi;			// 0x88; short file ID (EF only)
+	uint8_t  lcs;			// 0x8A; Life cycle stage
+	uint8_t comp_sa[7];	    // 0x8C; security attributes in compact format  
+	uint16_t se;			// 0x8D:the FID of associated securiy environment (DF only)
+	uint8_t expsa_bytes[20];// 0xAB; security attribute in expanded format 
+	uint32_t data_blk_ptr;	// points to the associated data block
 } Inode;
-
-typedef struct {
-	
-} InodeBmp;
 
 /** User data */
 typedef struct {
-	uint32_t length;
-	uint32_t start;
+	uint32_t curr;
+	uint32_t len;
+	uint32_t prev;
 } DataBlk;
 
 typedef struct {
-	
-} DataBlkBmp;
-
-typedef struct {
 	uint32_t magic;
-	uint32_t iNodesCount;
-	uint32_t iNodesStartAddress;
-	uint32_t dataBlkCount;
-	uint32_t dataBlksStartAddress;
+	uint32_t inodes_total;
+	uint32_t data_blocks_total;
+	uint16_t inodes_count;
+	uint16_t data_blocks_count;
+	Inode*   inodes_start;
+	DataBlk* data_blocks_start;
 } SuperBlock;
-
-/**
- * The length of iNodeTable is calculated as follow:
- * 1. four pages are dedicated for this array: "PAGE_SIZE * 4"
- * 2. the size of Inode block is sizeof(Inode) bytes length.
- * 3. each page can accomodate up to "PAGE_SIZE / sizeof(Inode)" entries
- * 4. thus "(PAGE_SIZE * 4) / sizeof(Inode)" is the number of INodes we can have in four pages
- */
-typedef struct {
-	SuperBlock super;
-	InodeBmp   inBmp;
-	DataBlkBmp dbBmp;
-	Inode      iNodeTable;
-	DataBlk    dataBlks;
-} FileSystem;
 
 /** Used as entry in dedicated file's data block.
  * When we create a DF, the system will allocate 1 Kbyte flash storage for it.
@@ -71,9 +53,9 @@ typedef struct {
 typedef struct {
 	uint16_t iNode;
 	uint16_t fid;
-} IdTuple;
+} DfEntry;
 
-FsCmdStatus create_file(uint8_t* data, uint32_t len);
-FsCmdStatus select_file(uint32_t fid);
+FMResult ffs_create_file(uint8_t* data, uint32_t len);
+FMResult ffs_select_file(uint32_t fid);
 
 #endif /* FUNFS_FILESYSTEM_H */
