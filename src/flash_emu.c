@@ -28,7 +28,7 @@ femu_allocate(uint16_t size)
 	size = WORD_ALIGNED(size);
 	DataBlk* address = (DataBlk*)fs_start_addr;
 	DataBlk* previous = (DataBlk*)fs_start_addr;
-
+	uint32_t result = 0;
 	do {
 		if (address->len == 0xFFFFFFFF) { // the block is empty
 			// allocate this block
@@ -36,12 +36,13 @@ femu_allocate(uint16_t size)
 
 			// set address->prev
 			address->prev = (uint32_t)previous;
+			result = (uint32_t)address + sizeof(DataBlk);
 			break;
 		} else { // seek another block
 			previous = address;
 
 			// shift to the next block
-			address = (DataBlk*)((uint8_t*)address + address->len);
+			address = (DataBlk*)((uint8_t*)address + address->len + sizeof(DataBlk));
 			
 			// check if the current address doesn't exceed flash boundary
 			if ((uint32_t)address + size >= fs_upper_addr) {
@@ -50,7 +51,7 @@ femu_allocate(uint16_t size)
 		}
 	} while (1);
 
-	return (uint32_t)address + sizeof(DataBlk);
+	return result;
 }
 
 FMResult

@@ -51,9 +51,6 @@ ffs_initialize(void)
 		super.inodes_count    = 0x00;
 		super.inodes_capacity = size / sizeof(Inode);	// if page size equals 1024, then the length
 														// of this array is 96 elements
-		size = FLASH_SIZE_TOTAL - size - sizeof(SuperBlock);
-		if (femu_allocate(size) == 0)
-			break;
 
 		// store the state of SuperBlock
 		if ((result = femu_write(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
@@ -215,7 +212,7 @@ store_inode(Inode* inode)
 		
 		inode_array = (Inode*)super.inodes_start;
 		
-		if ((result = femu_write((uint32_t)&inode_array[super.inodes_count], (uint8_t*)&super, sizeof(Inode))) != fmr_Ok)
+		if ((result = femu_write((uint32_t)&inode_array[super.inodes_count], (uint8_t*)inode, sizeof(Inode))) != fmr_Ok)
 			break;
 		
 		super.inodes_count++;
