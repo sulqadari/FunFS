@@ -4,40 +4,75 @@
 static const char* FLASH_BINARY = "FunFS.bin";
 static FILE*       aFile        = NULL;
 
-uint32_t fs_start_addr = 0x00;
-uint8_t flash_emu[FLASH_SIZE_TOTAL];
+static uint8_t flash_emu[FLASH_SIZE_TOTAL];
+static uint32_t fs_start_addr = 0x00;
+static uint32_t fs_upper_addr = 0x00;
+
+static void
+femu_set_bounds(void)
+{
+	fs_start_addr = (uint32_t)flash_emu;
+	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
+}
 
 uint32_t
-mmg_allocate(uint32_t offset, uint16_t size)
+femu_get_start_address(void)
 {
-	uint32_t address = 0;
+	femu_set_bounds();
+	return fs_start_addr;
+}
+
+uint32_t
+femu_allocate(uint16_t size)
+{
+	size = WORD_ALIGNED(size);
+	DataBlk* address = (DataBlk*)fs_start_addr;
+	DataBlk* previous = (DataBlk*)fs_start_addr;
 
 	do {
+		if (address->len == 0xFFFFFFFF) { // the block is empty
+			// allocate this block
+			address->len = size;
 
-	} while (0);
+			// set address->prev
+			address->prev = (uint32_t)previous;
+			break;
+		} else { // seek another block
+			previous = address;
 
-	return address;
+			// shift to the next block
+			address = (DataBlk*)((uint8_t*)address + address->len);
+			
+			// check if the current address doesn't exceed flash boundary
+			if ((uint32_t)address + size >= fs_upper_addr) {
+				break;
+			}
+		}
+	} while (1);
+
+	return (uint32_t)address + sizeof(DataBlk);
 }
 
 FMResult
-mmg_write(uint32_t offset, uint8_t* data, uint16_t data_len)
+femu_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
-	uint32_t bound = offset + data_len;
-	if (bound > FLASH_SIZE_TOTAL) {
+	if (offset + data_len > fs_upper_addr) {
 		return fmr_writeErr;
 	}
 
+	offset = offset - (uint32_t)flash_emu;
 	memcpy(&flash_emu[offset], data, data_len);
 	return fmr_Ok;
 }
 
 FMResult
-mmg_read(uint32_t offset, uint8_t* data, uint16_t data_len)
+femu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
-	uint32_t bound = offset + data_len;
-	if (bound > FLASH_SIZE_TOTAL) {
+	if (offset + data_len > fs_upper_addr) {
 		return fmr_readErr;
 	}
+
+	offset = offset - (uint32_t)flash_emu;
 
 	memcpy(data, &flash_emu[offset], data_len);
 	return fmr_Ok;
@@ -48,7 +83,7 @@ mmg_read(uint32_t offset, uint8_t* data, uint16_t data_len)
  * If file already exists, it will be reused.
  */
 FMResult
-mmg_open_flash(void)
+femu_open_flash(void)
 {
 	size_t bytesRead = 0;
 	FMResult result = fmr_Ok;
@@ -63,14 +98,14 @@ mmg_open_flash(void)
 		aFile = fopen(FLASH_BINARY, "r+");
 		if (aFile != NULL) {
 			bytesRead = fread(flash_emu, 1, FLASH_SIZE_TOTAL, aFile);
+			if (bytesRead != FLASH_SIZE_TOTAL) {
+				result = fmr_readErr;
+				break;
+			}
 		} else {
 			aFile = fopen(FLASH_BINARY, "w");
 		}
 
-		if (bytesRead != FLASH_SIZE_TOTAL) {
-			result = fmr_readErr;
-			break;
-		}
 		if (aFile == NULL) {
 			result = fmr_fopenErr;
 			break;
@@ -109,7 +144,7 @@ update_flash(void)
 }
 
 FMResult
-mmg_close_flash(void)
+femu_close_flash(void)
 {
 	FMResult result = fmr_Ok;
 

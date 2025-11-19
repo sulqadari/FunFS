@@ -8,6 +8,12 @@
 #define PERSENT 10
 #define INODES_TOTAL (((FLASH_SIZE_TOTAL * PERSENT) / 100) / sizeof(Inode))
 
+#define FID_MASTER_FILE   0x3F00
+#define FID_PIN_FILE      0x4001
+#define FID_SYM_KEYS_FILE 0x4002
+#define FID_SEC_ENV_FILE  0x4003
+
+
 typedef enum {
 	ft_EF = 0x01, // Elementary file
 	ft_LF = 0x0C, // Linear Fixed file
@@ -30,10 +36,9 @@ typedef struct {
 
 typedef struct {
 	uint32_t magic;
-	uint32_t inodes_total;
-	uint16_t inodes_count;
-	Inode*   inodes_start;
-	uint32_t data_blocks_start;
+	uint32_t inodes_count;
+	uint32_t inodes_capacity;
+	uint32_t inodes_start;
 } SuperBlock;
 
 /** Used as entry in dedicated file's data block.
@@ -45,6 +50,8 @@ typedef struct {
 	uint16_t iNode;
 	uint16_t fid;
 } DfEntry;
+
+FMResult ffs_initialize(void);
 
 FMResult ffs_create_file(uint8_t* data, uint32_t len);
 FMResult ffs_select_file(uint32_t fid);

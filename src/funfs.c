@@ -1,64 +1,64 @@
 #include "funfs.h"
 #include "flash_emu.h"
+#include <string.h>
 
+static uint32_t super_blk_addr;
 
-#define PAGE_ALIGNED(expr) (((expr) + 0x3FF) & 0xFFFFFC00)
-#define WORD_ALIGNED(expr) (((expr) +  0x03) & 0xFFFFFFFC)
+typedef struct {
+	uint16_t parent_df;
+	uint16_t curr_df;
+	uint16_t curr_ef;
+} ValidityArea;
+
+ValidityArea va;
 
 FMResult
 ffs_initialize(void)
 {
 	FMResult result = fmr_Err;
 	SuperBlock super;
-	uint32_t blocks_start_addr;
+	
+	(void)sizeof(Inode);
+	(void)sizeof(SuperBlock);
 	do {
 		
+		super_blk_addr = femu_get_start_address();
+
 		// Open (or create) persistent storage for a flash memory
-		if ((result = mmg_open_flash()) != fmr_Ok)
+		if ((result = femu_open_flash()) != fmr_Ok)
 			break;
 		
-		// Read the 'Super Block' and find out has the file system been initialized or not
-		if ((result = mmg_read(fs_start_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
+		// Read the 'Super Block' and find out has the file system been initialized previously or not
+		if ((result = femu_read(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
 			break;
 		
 		// The file system is already initialized. Bail out.
-		if (super.magic == 0xCAFEBABE)
-			break;
-			
-		super.magic             = 0xCAFEBABE;
-		super.inodes_total      = 0x00;
-		super.inodes_count      = 0x00;
-		super.inodes_start      = (Inode*)WORD_ALIGNED(fs_start_addr + sizeof(SuperBlock));
-		super.data_blocks_start = (uint32_t)PAGE_ALIGNED((uint32_t)super.inodes_start + PAGE_SIZE * 6);
-
-		if ((result = mmg_write(fs_start_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
-			break;
-		
-		uint32_t initial_block_size = FLASH_SIZE_TOTAL - super.data_blocks_start;
-
-		if ((blocks_start_addr = mmg_allocate(super.data_blocks_start, initial_block_size)) == 0) {
-			result = fmr_Err;
+		if (super.magic == 0xCAFEBABE) {
+			va.curr_df   = FID_MASTER_FILE;
+			va.parent_df = FID_MASTER_FILE;
 			break;
 		}
 
-	} while (0);
-
-	return result;
-}
-
-static FMResult
-store_inode(Inode* inode)
-{
-	FMResult result = fmr_Err;
-	SuperBlock super;
-	uint32_t address;
-
-	do {
-		if ((result = mmg_read(fs_start_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
+		// allocate space on the flash for the SuperBlock
+		if ((super_blk_addr = femu_allocate(sizeof(SuperBlock))) == 0)
 			break;
-		
-		super.inodes_start;
-		
+
+		uint32_t size = PAGE_SIZE * 6;
+		if ((super.inodes_start = femu_allocate(size)) == 0)
+			break;
+
+		super.magic           = 0xCAFEBABE;
+		super.inodes_count    = 0x00;
+		super.inodes_capacity = size / sizeof(Inode);	// if page size equals 1024, then the length
+														// of this array is 96 elements
+		size = FLASH_SIZE_TOTAL - size - sizeof(SuperBlock);
+		if (femu_allocate(size) == 0)
+			break;
+
+		// store the state of SuperBlock
+		if ((result = femu_write(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
+			break;
+
 	} while (0);
 
 	return result;
@@ -67,12 +67,14 @@ store_inode(Inode* inode)
 #define assert_eq(curr, expt) \
 	if (curr != expt) {       \
 		result = fmr_Err;     \
-	} break
+		break;                \
+	} 
 
 #define assert_less(curr, expt) \
 	if (curr > expt) {          \
 		result = fmr_Err;       \
-	} break
+		break;                  \
+	}
 
 #define advance() (curr += len)
 
@@ -82,6 +84,7 @@ from_short(uint8_t* buff)
 	return (((uint16_t)buff[0] << 8) | ((uint16_t)buff[1] & 0xFF));
 }
 
+/** TODO: implement parameters consistency check */
 static FMResult
 parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 {
@@ -91,16 +94,17 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 
 	// 1. parse input string
 	do {
-		uint16_t tag = curr++;
-		uint16_t len = curr++;
+		uint8_t tag = *curr++;
+		uint8_t len = *curr++;
 
-		result = fmr_Err;
-		if (tag != 0x62)
+		if (tag != 0x62) {
+			result = fmr_Err;
 			break;
+		}
 		
 		while (curr < end) {
-			tag = curr++;
-			len = curr++;
+			tag = *curr++;
+			len = *curr++;
 			switch (tag) {
 				case 0x80: { // File size
 					assert_eq(len, 2);
@@ -166,17 +170,60 @@ allocate_data_block(Inode* inode)
 {
 	FMResult result = fmr_Ok;
 	SuperBlock super;
+	FileType type = inode->desc[0];
+	uint32_t size = (type == ft_DF) ? 256 : (inode->size & 0xFFFF);
 
 	do {
-		// Read the 'Super Block' and find out has the file system been initialized or not
-		if ((result = mmg_read(fs_start_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
+		if ((result = femu_read(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok){
 			break;
-		
-		if ((inode->data_blk_ptr = mmg_allocate(super.data_blocks_start, inode->size)) == 0x00){
+		}
+
+		if ((inode->data_blk_ptr = femu_allocate(size)) == 0x00) {
 			result = fmr_Err;
 			break;
 		}
 
+		if (type == ft_DF) {
+			DfEntry entry;
+			entry.iNode = super.inodes_count;
+			entry.fid = inode->fid;
+
+			if ((result = femu_write(inode->data_blk_ptr, (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
+				break;
+			
+			if ((result = femu_write(inode->data_blk_ptr + sizeof(DfEntry), (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
+				break;
+		}
+	} while (0);
+
+	return result;
+}
+
+static FMResult
+store_inode(Inode* inode)
+{
+	FMResult result = fmr_Err;
+	SuperBlock super;
+	Inode* inode_array;
+
+	do {
+		if ((result = femu_read(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
+			break;
+		
+		if (super.inodes_count >= super.inodes_capacity)
+			break;
+		
+		inode_array = (Inode*)super.inodes_start;
+		
+		if ((result = femu_write((uint32_t)&inode_array[super.inodes_count], (uint8_t*)&super, sizeof(Inode))) != fmr_Ok)
+			break;
+		
+		super.inodes_count++;
+
+		// store the state of SuperBlock
+		if ((result = femu_write(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
+			break;
+		
 	} while (0);
 
 	return result;
@@ -199,6 +246,7 @@ ffs_create_file(uint8_t* data, uint32_t data_len)
 			break;
 
 	} while (0);
+	return result;
 }
 
 FMResult
