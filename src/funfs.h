@@ -8,6 +8,7 @@
 #define PERSENT 10
 #define INODES_TOTAL (((FLASH_SIZE_TOTAL * PERSENT) / 100) / sizeof(Inode))
 
+#define FID_NONE          0xFFFF
 #define FID_MASTER_FILE   0x3F00
 #define FID_PIN_FILE      0x4001
 #define FID_SYM_KEYS_FILE 0x4002

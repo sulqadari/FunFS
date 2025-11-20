@@ -32,10 +32,11 @@ ffs_initialize(void)
 		if ((result = femu_read(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
 			break;
 		
-		// The file system is already initialized. Bail out.
+		// The file system is already initialized, then set MF as the current folder and bail out.
 		if (super.magic == 0xCAFEBABE) {
-			va.curr_df   = FID_MASTER_FILE;
 			va.parent_df = FID_MASTER_FILE;
+			va.curr_df   = FID_MASTER_FILE;
+			va.curr_ef   = FID_NONE;
 			break;
 		}
 
@@ -169,6 +170,7 @@ allocate_data_block(Inode* inode)
 	SuperBlock super;
 	FileType type = inode->desc[0];
 	uint32_t size = (type == ft_DF) ? 256 : (inode->size & 0xFFFF);
+	DfEntry entry;
 
 	do {
 		if ((result = femu_read(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok){
@@ -181,16 +183,22 @@ allocate_data_block(Inode* inode)
 		}
 
 		if (type == ft_DF) {
-			DfEntry entry;
-			entry.iNode = super.inodes_count;
-			entry.fid = inode->fid;
+			
+			va.parent_df = va.curr_df; // the current dir now becomes 'parent' of the newly created folder
+			va.curr_df   = inode->fid; // the newly created folder becomes current dir.
+
+			entry.fid    = inode->fid;         // DF shall contain its own name (i.e. the '.' in Unux terms)
+			entry.iNode  = super.inodes_count; // counter's value is used as an index into Inode array.
 
 			if ((result = femu_write(inode->data, (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
 				break;
 			
 			if ((result = femu_write(inode->data + sizeof(DfEntry), (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
 				break;
+		} else if (type == ft_EF) {
+			va.curr_ef = inode->fid;
 		}
+
 	} while (0);
 
 	return result;
