@@ -26,32 +26,32 @@ uint32_t
 femu_allocate(uint16_t size)
 {
 	size = WORD_ALIGNED(size);
-	DataBlk* address = (DataBlk*)fs_start_addr;
+	DataBlk* current = (DataBlk*)fs_start_addr;
 	DataBlk* previous = (DataBlk*)fs_start_addr;
-	uint32_t result = 0;
+	uint32_t address = 0;
 	do {
-		if (address->len == 0xFFFFFFFF) { // the block is empty
+		if (current->len == 0xFFFFFFFF) { // the block is empty
 			// allocate this block
-			address->len = size;
+			current->len = size;
 
 			// set address->prev
-			address->prev = (uint32_t)previous;
-			result = (uint32_t)address + sizeof(DataBlk);
+			current->prev = (uint32_t)previous;
+			address = (uint32_t)current + sizeof(DataBlk);
 			break;
 		} else { // seek another block
-			previous = address;
+			previous = current;
 
 			// shift to the next block
-			address = (DataBlk*)((uint8_t*)address + address->len + sizeof(DataBlk));
+			current = (DataBlk*)((uint8_t*)current + current->len + sizeof(DataBlk));
 			
 			// check if the current address doesn't exceed flash boundary
-			if ((uint32_t)address + size >= fs_upper_addr) {
+			if ((uint32_t)current + size >= fs_upper_addr) {
 				break;
 			}
 		}
 	} while (1);
 
-	return result;
+	return address;
 }
 
 FMResult

@@ -22,7 +22,7 @@ ffs_initialize(void)
 	(void)sizeof(SuperBlock);
 	do {
 		
-		super_blk_addr = femu_get_start_address();
+		super_blk_addr = femu_get_start_address() + sizeof(DataBlk);
 
 		// Open (or create) persistent storage for a flash memory
 		if ((result = femu_open_flash()) != fmr_Ok)
@@ -233,6 +233,7 @@ ffs_create_file(uint8_t* data, uint32_t data_len)
 	Inode inode;
 
 	do {
+		memset((uint8_t*)&inode,0x00, sizeof(Inode));
 		if ((result = parse_params(&inode, data, data_len)) != fmr_Ok)
 			break;
 

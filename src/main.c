@@ -86,6 +86,7 @@ test_02(void)
 {
 	ffs_initialize();
 	ffs_create_file(cmd_create_mf, sizeof(cmd_create_mf));
+	ffs_create_file(cmd_create_mf, sizeof(cmd_create_mf));
 	femu_close_flash();
 	return 0;
 }
