@@ -59,11 +59,11 @@ static uint8_t
 isHex(char c)
 {
 	if ((c >= '0') && (c <= '9')) {
-		return (uint8_t)(c - '0');
+		return (uint8_t)c - 48;
 	} else if ((c >= 'A') && (c <= 'F')) {
-		return (uint8_t)(c - 'A');
+		return (uint8_t)c - 55;
 	} else if ((c >= 'a') && (c <= 'f')) {
-		return (uint8_t)(c - 'a');
+		return (uint8_t)c - 87;
 	} else {
 		return 0xff;
 	}
@@ -76,7 +76,7 @@ to_byte(uint8_t hn, uint8_t ln)
 }
 
 static uint8_t*
-hex_to_bytes(const char* str)
+hex_to_bytes(const char* str, uint16_t* outLen)
 {
 	uint8_t hasError = 0;
 	uint8_t* bytes = NULL;
@@ -93,6 +93,7 @@ hex_to_bytes(const char* str)
 			break;
 		}
 		
+		*outLen = len / 2;
 		bytes = malloc(len / 2);
 		if (bytes == NULL) {
 			hasError = 1;
@@ -198,12 +199,12 @@ static uint8_t
 test_03(void)
 {
 	uint8_t* cmd_array[5];
-
-	cmd_array[0] = hex_to_bytes("00112233445566778899");
-	cmd_array[1]  = hex_to_bytes("AAFF");
-	cmd_array[2]  = hex_to_bytes("aaff");
-	cmd_array[3]  = hex_to_bytes("A A  B B");
-	cmd_array[4]  = hex_to_bytes("a	a		b		b");
+	uint16_t len = 0;
+	// cmd_array[0] = hex_to_bytes("00112233445566778899");
+	cmd_array[1]  = hex_to_bytes("AA FF", &len);
+	cmd_array[2]  = hex_to_bytes("aaff ", &len);
+	cmd_array[3]  = hex_to_bytes("A A  B B", &len);
+	cmd_array[4]  = hex_to_bytes("a	a		b		b", &len);
 
 	for (uint8_t i = 0; i < 3; ++i) {
 		free(cmd_array[i]);
@@ -212,8 +213,58 @@ test_03(void)
 	return 0;
 }
 
+static uint8_t
+test_04(void)
+{
+	FMResult result = fmr_Err;
+	uint16_t len = 0;
+	do {
+		if (ffs_initialize()) {
+			printf("ERROR: failed to initialize file system\n");
+			break;
+		}
+
+		uint8_t* cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		if (ffs_create_file(cmd, len)) {
+			printf("ERROR: CREATE MF failed\n");
+			break;
+		}
+		free(cmd);
+
+		cmd = hex_to_bytes("6217 8302 0101 8202 0101 8002 00FF 8A01 01 8C06 6BFFFFFF1111", &len);
+		if (ffs_create_file(cmd, len)) {
+			printf("ERROR: CREATE MF::0101 failed\n");
+			break;
+		}
+		free(cmd);
+		cmd = hex_to_bytes("6236 8302 5F00 8201 38 8407 A0000002471001 8D02 4003 8A01 01 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		if (ffs_create_file(cmd, len)) {
+			printf("ERROR: CREATE MF::5F00 failed\n");
+			break;
+		}
+		free(cmd);
+		cmd = hex_to_bytes("6217 8302 0101 8202 0101 8002 0020 8A01 01 8C06 6BFFFFFF1111", &len);
+		if (ffs_create_file(cmd, len)) {
+			printf("ERROR: CREATE MF::5F00::0101 failed\n");
+			break;
+		}
+		free(cmd);
+		cmd = hex_to_bytes("6217 8302 0102 8202 0101 8002 0020 8A01 01 8C06 6BFFFFFF1212", &len);
+		if (ffs_create_file(cmd, len)) {
+			printf("ERROR: CREATE MF::5F00::0102 failed\n");
+			break;
+		}
+		free(cmd);
+
+		result = fmr_Ok;
+	} while (0);
+
+	femu_close_flash();
+	return result;
+}
+
 int
 main(int argc, char* argv[])
 {
-	return test_03();
+	return test_04();
 }
