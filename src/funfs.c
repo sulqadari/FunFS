@@ -67,10 +67,10 @@ ffs_initialize(void)
 		break;                \
 	} 
 
-#define assert_less(curr, expt) \
-	if (curr > expt) {          \
-		result = fmr_Err;       \
-		break;                  \
+#define assert_leq(curr, expt) \
+	if (curr > expt) {         \
+		result = fmr_Err;      \
+		break;                 \
 	}
 
 #define advance() (curr += len)
@@ -109,7 +109,7 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 					advance();
 				} break;
 				case 0x82: { // file descriptor (e.g. DF, EF, LF, etc.)
-					assert_less(len, 5);
+					assert_leq(len, 5);
 					memcpy(&inode->desc, curr, len);
 					advance();
 				} break;
@@ -119,7 +119,7 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 					advance();
 				} break;
 				case 0x84: { // application AID (for DFs only)
-					assert_less(len, 16);
+					assert_leq(len, 16);
 					memcpy(&inode->aid, curr, len);
 					advance();
 				} break;
@@ -134,8 +134,8 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 					advance();
 				} break;
 				case 0x8C: {  // security attributes in compact format
-					assert_less(len, 7);
-					memcpy(&inode->comp_sa, curr, len);
+					assert_leq(len, 7);
+					memcpy(&inode->compact, curr, len);
 					advance();
 				} break;
 				case 0x8D: { // the FID of associated securiy environment
@@ -144,8 +144,8 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 					advance();
 				} break;
 				case 0xAB: {
-					assert_less(len, 20);
-					memcpy(&inode->expsa_bytes, curr, len);
+					assert_leq(len, 20);
+					memcpy(&inode->expanded, curr, len);
 					advance();
 				} break;
 				default: {
@@ -175,7 +175,7 @@ allocate_data_block(Inode* inode)
 			break;
 		}
 
-		if ((inode->data_blk_ptr = femu_allocate(size)) == 0x00) {
+		if ((inode->data = femu_allocate(size)) == 0x00) {
 			result = fmr_Err;
 			break;
 		}
@@ -185,10 +185,10 @@ allocate_data_block(Inode* inode)
 			entry.iNode = super.inodes_count;
 			entry.fid = inode->fid;
 
-			if ((result = femu_write(inode->data_blk_ptr, (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
+			if ((result = femu_write(inode->data, (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
 				break;
 			
-			if ((result = femu_write(inode->data_blk_ptr + sizeof(DfEntry), (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
+			if ((result = femu_write(inode->data + sizeof(DfEntry), (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
 				break;
 		}
 	} while (0);

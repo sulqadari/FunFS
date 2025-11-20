@@ -1,4 +1,5 @@
 #include "funfs.h"
+#include <string.h>
 
 uint8_t tempData[] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
 uint8_t tempAnsr[16];
@@ -14,6 +15,117 @@ print_hex(uint8_t* data, uint32_t len)
 		printf("%02x ", data[i]);
 	}
 	printf("\n");
+}
+
+static char*
+remove_spaces(const char* str)
+{
+	// count spaces
+	uint32_t spaces = 0;
+
+	if (str == NULL)
+		return NULL;
+	
+	char* result = (char*)str;
+	while (*result) {
+		
+		char c = *result;
+		if (c == ' ' || c == '\t'){
+			spaces++;
+		}
+		result++;
+	}
+
+	// allocate new array. Its length should be shorter for number of spaces
+	size_t len = strlen(str);
+	result = malloc(len - spaces);
+	if (result == NULL)
+		return result;
+	
+	// copy symbols into new array
+	for (uint32_t from = 0, to = 0; from < len; ++from) {
+		if ((str[from] != ' ') && (str[from] != '\t')) {
+			result[to] = str[from];
+			to++;
+		} else {
+			continue;
+		}
+	}
+
+	return result;
+}
+
+static uint8_t
+isHex(char c)
+{
+	if ((c >= '0') && (c <= '9')) {
+		return (uint8_t)(c - '0');
+	} else if ((c >= 'A') && (c <= 'F')) {
+		return (uint8_t)(c - 'A');
+	} else if ((c >= 'a') && (c <= 'f')) {
+		return (uint8_t)(c - 'a');
+	} else {
+		return 0xff;
+	}
+}
+
+static uint8_t
+to_byte(uint8_t hn, uint8_t ln)
+{
+	return ((hn << 4) | (ln & 0x0F));
+}
+
+static uint8_t*
+hex_to_bytes(const char* str)
+{
+	uint8_t hasError = 0;
+	uint8_t* bytes = NULL;
+	char* truncated = NULL;
+
+	do {
+		truncated = remove_spaces(str);
+		if (truncated == NULL)
+			break;
+
+		size_t len = strlen(truncated);
+		if ((len % 2) != 0) {
+			hasError = 1;
+			break;
+		}
+		
+		bytes = malloc(len / 2);
+		if (bytes == NULL) {
+			hasError = 1;
+			break;
+		}
+		
+		uint8_t i = 0;
+		uint8_t hn;
+		uint8_t ln;
+		char* ptr = truncated;
+		do {
+			hn = isHex(*ptr++);
+			ln = isHex(*ptr++);
+	
+			if ((hn == 0xff) || (ln == 0xff)) {
+				hasError = 1;
+				break;
+			} else {
+				hn = to_byte(hn, ln);
+				bytes[i++] = hn;
+			}
+			
+		} while (*ptr);
+
+	} while (0);
+
+	free(truncated);
+	if (hasError) {
+		free(bytes);
+		bytes = NULL;
+	}
+	
+	return bytes;
 }
 
 static uint8_t
@@ -69,30 +181,39 @@ static uint8_t cmd_create_mf[] = {
 	(uint8_t)0x97,(uint8_t)0x00
 };
 
-/* FIXME
-00000000  10 00 00 00 c0 90 55 56  be ba fe ca 01 00 00 00  |......UV........|
-00000010  60 00 00 00 d8 90 55 56  be ba fe ca 00 00 00 00  |`.....UV........|
-00000020  60 00 00 00 d8 90 55 56  00 d2 d8 c8 20 00 00 00  |`.....UV.... ...|
-00000030  ac 8f 55 56 28 c2 ff ff  5b 6e 55 56 dc c1 ff ff  |..UV(...[nUV....|
-00000040  40 90 55 56 2f 00 00 00  fc 6d 55 56 bc 70 55 56  |@.UV/....mUV.pUV|
-00000050  c9 70 55 56 ac 8f 55 56  ff ff ff ff ff ff ff ff  |.pUV..UV........|
-00000060  ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff  |................|
-00000070  00 01 00 00 d0 90 55 56  00 00 00 3f 00 00 00 3f  |......UV...?...?|
-00000080  ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff  |................|
-
-*/
 static uint8_t
 test_02(void)
 {
 	ffs_initialize();
-	ffs_create_file(cmd_create_mf, sizeof(cmd_create_mf));
-	ffs_create_file(cmd_create_mf, sizeof(cmd_create_mf));
+	
+	for (uint32_t i = 0; i < 10; ++i) {
+		ffs_create_file(cmd_create_mf, sizeof(cmd_create_mf));
+	}
+
 	femu_close_flash();
+	return 0;
+}
+
+static uint8_t
+test_03(void)
+{
+	uint8_t* cmd_array[5];
+
+	cmd_array[0] = hex_to_bytes("00112233445566778899");
+	cmd_array[1]  = hex_to_bytes("AAFF");
+	cmd_array[2]  = hex_to_bytes("aaff");
+	cmd_array[3]  = hex_to_bytes("A A  B B");
+	cmd_array[4]  = hex_to_bytes("a	a		b		b");
+
+	for (uint8_t i = 0; i < 3; ++i) {
+		free(cmd_array[i]);
+	}
+
 	return 0;
 }
 
 int
 main(int argc, char* argv[])
 {
-	return test_02();
+	return test_03();
 }
