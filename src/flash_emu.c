@@ -11,8 +11,8 @@ static uint32_t fs_upper_addr = 0x00;
 static void
 femu_set_bounds(void)
 {
-	fs_start_addr = (uint32_t)flash_emu;
-	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
+	fs_start_addr = 0;
+	fs_upper_addr = FLASH_SIZE_TOTAL;
 }
 
 uint32_t
@@ -22,12 +22,14 @@ femu_get_start_address(void)
 	return fs_start_addr;
 }
 
+#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(DataBlk)) - (uint32_t)flash_emu
+
 uint32_t
 femu_allocate(uint16_t size)
 {
 	size = WORD_ALIGNED(size);
-	DataBlk* current = (DataBlk*)fs_start_addr;
-	DataBlk* previous = (DataBlk*)fs_start_addr;
+	DataBlk* current = (DataBlk*)flash_emu;
+	DataBlk* previous = (DataBlk*)flash_emu;
 	uint32_t address = 0;
 	do {
 		if (current->len == 0xFFFFFFFF) { // the block is empty
@@ -35,8 +37,9 @@ femu_allocate(uint16_t size)
 			current->len = size;
 
 			// set address->prev
-			current->prev = (uint32_t)previous;
-			address = (uint32_t)current + sizeof(DataBlk);
+			current->prev = calculate_index(previous);
+			// compute actual index within flash_emu array
+			address = calculate_index(current);
 			break;
 		} else { // seek another block
 			previous = current;
@@ -45,7 +48,7 @@ femu_allocate(uint16_t size)
 			current = (DataBlk*)((uint8_t*)current + current->len + sizeof(DataBlk));
 			
 			// check if the current address doesn't exceed flash boundary
-			if ((uint32_t)current + size >= fs_upper_addr) {
+			if ((uint32_t)current + size >= (uint32_t)flash_emu + fs_upper_addr) {
 				break;
 			}
 		}
@@ -61,7 +64,6 @@ femu_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 		return fmr_writeErr;
 	}
 
-	offset = offset - (uint32_t)flash_emu;
 	memcpy(&flash_emu[offset], data, data_len);
 	return fmr_Ok;
 }
@@ -72,8 +74,6 @@ femu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
 	if (offset + data_len > fs_upper_addr) {
 		return fmr_readErr;
 	}
-
-	offset = offset - (uint32_t)flash_emu;
 
 	memcpy(data, &flash_emu[offset], data_len);
 	return fmr_Ok;
@@ -129,7 +129,9 @@ update_flash(void)
 			result = fmr_Err;
 			break;
 		}
-	
+		
+		rewind(aFile);
+		
 		size_t written = fwrite(flash_emu, 1, FLASH_SIZE_TOTAL, aFile);
 		if (written < FLASH_SIZE_TOTAL) {
 			fprintf(stderr, "ERROR: couldn't update %s binary file.\n", FLASH_BINARY);
@@ -138,7 +140,6 @@ update_flash(void)
 			break;
 		}
 	
-		rewind(aFile);
 	} while (0);
 
 	return result;
