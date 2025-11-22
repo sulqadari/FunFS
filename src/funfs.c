@@ -2,60 +2,72 @@
 #include "flash_emu.h"
 #include <string.h>
 
-static uint32_t super_blk_addr;
-
 typedef struct {
-	uint16_t parent_df;
-	uint16_t curr_df;
-	uint16_t curr_ef;
+	DfEntry    parent_dir;
+	DfEntry    current_dir;
+	DfEntry    current_file;
+	SuperBlock sblk;
+	uint32_t   sblk_addr;
 } ValidityArea;
 
-ValidityArea va;
+static ValidityArea va;
 
-FMResult
+FmResult
 ffs_initialize(void)
 {
-	FMResult result = fmr_Err;
-	SuperBlock super;
+	FmResult result = fmr_Err;
 	
 	(void)sizeof(Inode);
 	(void)sizeof(SuperBlock);
+	(void)sizeof(ValidityArea);
 	do {
-		
-		super_blk_addr = femu_get_start_address() + sizeof(DataBlk);
+		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
+
+		va.sblk_addr = femu_get_start_address() + sizeof(FmBlock);
 
 		// Open (or create) persistent storage for a flash memory
-		if ((result = femu_open_flash()) != fmr_Ok)
+		if ((result = femu_open_flash()) != fmr_Ok) {
 			break;
-		
+		}
 		// Read the 'Super Block' and find out has the file system been initialized previously or not
-		if ((result = femu_read(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
-			break;
-		
-		// The file system is already initialized, then set MF as the current folder and bail out.
-		if (super.magic == 0xCAFEBABE) {
-			va.parent_df = FID_MASTER_FILE;
-			va.curr_df   = FID_MASTER_FILE;
-			va.curr_ef   = FID_NONE;
+		if ((result = femu_read(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock))) != fmr_Ok) {
 			break;
 		}
 
+		// IF: the file system is already initialized, then just set the MF as the current folder and bail out.
+		if (va.sblk.magic == 0xCAFEBABE) {
+			// set the MF as the current dir
+			va.parent_dir.fid  = FID_MASTER_FILE;
+			va.parent_dir.iNode = 0x00; // Master file has zeroth index in iNode table
+
+			// The master file hasn't parent dir. Thus this field closures to master file it self.
+			va.current_dir.fid  = FID_MASTER_FILE;
+			va.current_dir.iNode = 0x00; // Master file has zeroth index in iNode table
+			
+			// At startup there is no
+			va.current_file.fid   = FID_NONE;
+			va.current_file.iNode = FID_NONE;
+			break;
+		}
+
+		// OTHERWISE: this is the very first run: no MF, no file system, no nothing.
 		// allocate space on the flash for the SuperBlock
-		if ((super_blk_addr = femu_allocate(sizeof(SuperBlock))) == 0)
+		if ((va.sblk_addr = femu_allocate(sizeof(SuperBlock))) == 0) {
 			break;
+		}
 
+		// allocate  space on the flash for the Inodes table.
 		uint32_t size = PAGE_SIZE * 6;
-		if ((super.inodes_start = femu_allocate(size)) == 0)
+		if ((va.sblk.inodes_start = femu_allocate(size)) == 0) {
 			break;
+		}
 
-		super.magic           = 0xCAFEBABE;
-		super.inodes_count    = 0x00;
-		super.inodes_capacity = size / sizeof(Inode);	// if page size equals 1024, then the length
+		va.sblk.magic           = 0xCAFEBABE;
+		va.sblk.inodes_count    = 0x00;
+		va.sblk.inodes_capacity = size / sizeof(Inode);	// if page size equals 1024, then the length
 														// of this array is 96 elements
-
 		// store the state of SuperBlock
-		if ((result = femu_write(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
-			break;
+		result = femu_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock));
 
 	} while (0);
 
@@ -83,10 +95,10 @@ from_short(uint8_t* buff)
 }
 
 /** TODO: implement parameters consistency check */
-static FMResult
+static FmResult
 parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 {
-	FMResult result = fmr_Ok;
+	FmResult result = fmr_Ok;
 	uint8_t* curr = data;
 	uint8_t* end  = data + data_len;
 
@@ -163,40 +175,65 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 	return result;
 }
 
-static FMResult
-allocate_data_block(Inode* inode)
+static FmResult
+data_block_for_df(Inode* current)
 {
-	FMResult result = fmr_Ok;
-	SuperBlock super;
-	FileType type = inode->desc[0];
-	uint32_t size = (type == ft_DF) ? 256 : (inode->size & 0xFFFF);
-	DfEntry entry;
+	FmResult result = fmr_Ok;
 
 	do {
-		if ((result = femu_read(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok){
-			break;
-		}
-
-		if ((inode->data = femu_allocate(size)) == 0x00) {
+		// The MF must be the first one and the only in the file system.
+		if ((va.sblk.inodes_count != 0x00) && (current->fid == FID_MASTER_FILE)) {
 			result = fmr_Err;
 			break;
 		}
 
-		if (type == ft_DF) {
-			
-			va.parent_df = va.curr_df; // the current dir now becomes 'parent' of the newly created folder
-			va.curr_df   = inode->fid; // the newly created folder becomes current dir.
+		// The size of DF is always 256 bytes.
+		current->size = 256;
+		// allocate a data block for the newly created DF
+		if ((current->data = femu_allocate(current->size)) == 0x00) {
+			result = fmr_writeErr;
+			break;
+		}
 
-			entry.fid    = inode->fid;         // DF shall contain its own name (i.e. the '.' in Unux terms)
-			entry.iNode  = super.inodes_count; // counter's value is used as an index into Inode array.
+		// the current dir now becomes 'parent' of the newly created one.
+		va.parent_dir.fid  = va.current_dir.fid;
+		va.parent_dir.iNode = va.current_dir.iNode;
 
-			if ((result = femu_write(inode->data, (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
+		// the newly created folder becomes the current one.
+		va.current_dir.fid = current->fid;
+		va.current_dir.iNode = va.sblk.inodes_count;
+
+		femu_write(current->data,                   (uint8_t*)&va.current_dir, sizeof(DfEntry));
+		femu_write(current->data + sizeof(DfEntry), (uint8_t*)&va.parent_dir,  sizeof(DfEntry));
+		// the MF is the first element in the file system. There is nothing to do.
+		if (current->fid == FID_MASTER_FILE) {
+			break;
+		}
+
+		// traverse the path from this DF right to the MF,
+		// increasing the inode->size value of each parent folder.
+		Inode* inode_array = (Inode*)va.sblk.inodes_start;
+		uint16_t idx = va.parent_dir.iNode;
+		
+		do {
+			Inode* parent = (Inode*)&inode_array[idx];
+			if (parent->desc[0] != ft_DF) {
+				result = fmr_Err;
 				break;
-			
-			if ((result = femu_write(inode->data + sizeof(DfEntry), (uint8_t*)&entry, sizeof(DfEntry))) != fmr_Ok)
+			}
+			// add the size of newly create folder to the size of subsequent parent folder.
+			uint16_t updated_size = parent->size + current->size;
+			if ((result = femu_write((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != fmr_Ok){
 				break;
-		} else if (type == ft_EF) {
-			va.curr_ef = inode->fid;
+			}
+
+			// get the inode index of subsequent parent. Note that the '0' points to MF.
+			idx = ((DfEntry*)parent->data)->iNode;
+
+		} while (idx);
+
+		if (result != fmr_Ok) {
+			break;
 		}
 
 	} while (0);
@@ -204,43 +241,73 @@ allocate_data_block(Inode* inode)
 	return result;
 }
 
-static FMResult
-store_inode(Inode* inode)
+static FmResult
+data_block_for_ef(Inode* inode)
 {
-	FMResult result = fmr_Err;
-	SuperBlock super;
-	Inode* inode_array;
+	FmResult result = fmr_Ok;
 
 	do {
-		if ((result = femu_read(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
-			break;
-		
-		if (super.inodes_count >= super.inodes_capacity)
-			break;
-		
-		inode_array = (Inode*)super.inodes_start;
-		
-		if ((result = femu_write((uint32_t)&inode_array[super.inodes_count], (uint8_t*)inode, sizeof(Inode))) != fmr_Ok)
-			break;
-		
-		super.inodes_count++;
 
-		// store the state of SuperBlock
-		if ((result = femu_write(super_blk_addr, (uint8_t*)&super, sizeof(SuperBlock))) != fmr_Ok)
-			break;
-		
 	} while (0);
 
 	return result;
 }
 
-FMResult
+static FmResult
+allocate_data_block(Inode* inode)
+{
+	FmResult result = fmr_Ok;
+	FileType type = inode->desc[0];
+	
+	do {
+		if (type == ft_DF) {
+			result = data_block_for_df(inode);
+		} else if (type == ft_EF) {
+			result = data_block_for_ef(inode);
+		} else {
+			result = fmr_Err;
+		}
+
+	} while (0);
+	return result;
+}
+
+static FmResult
+store_inode(Inode* inode)
+{
+	FmResult result = fmr_Err;
+
+	do {
+		Inode* inode_array = (Inode*)va.sblk.inodes_start;
+		if ((result = femu_write((uint32_t)&inode_array[va.sblk.inodes_count], (uint8_t*)inode, sizeof(Inode))) != fmr_Ok) {
+			break;
+		}
+
+		// update the number of Inodes in Inode table
+		va.sblk.inodes_count++;
+
+		// store the updated state of SuperBlock
+		if ((result = femu_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock))) != fmr_Ok) {
+			break;
+		}
+
+	} while (0);
+
+	return result;
+}
+
+FmResult
 ffs_create_file(uint8_t* data, uint32_t data_len)
 {
-	FMResult result = fmr_Ok;
+	FmResult result = fmr_InodeTableFull;
 	Inode inode;
 
 	do {
+		// we cant't create more than 'inodes_capacity' files.
+		if (va.sblk.inodes_count >= va.sblk.inodes_capacity) {
+			break;
+		}
+
 		memset((uint8_t*)&inode,0x00, sizeof(Inode));
 		if ((result = parse_params(&inode, data, data_len)) != fmr_Ok)
 			break;
@@ -255,9 +322,9 @@ ffs_create_file(uint8_t* data, uint32_t data_len)
 	return result;
 }
 
-FMResult
+FmResult
 ffs_select_file(uint32_t fid)
 {
-	FMResult result = fmr_Err;
+	FmResult result = fmr_Err;
 	return result;
 }

@@ -1,0 +1,9 @@
+{
+	"files.associations": {
+		"*.jcsh": "shellscript",
+		"*.incl": "makefile",
+		"*.l": "plaintext",
+		"*.y": "plaintext",
+		"funfs.h": "c"
+	}
+}

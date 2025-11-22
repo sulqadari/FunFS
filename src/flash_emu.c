@@ -22,14 +22,14 @@ femu_get_start_address(void)
 	return fs_start_addr;
 }
 
-#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(DataBlk)) - (uint32_t)flash_emu
+#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(FmBlock)) - (uint32_t)flash_emu
 
 uint32_t
 femu_allocate(uint16_t size)
 {
 	size = WORD_ALIGNED(size);
-	DataBlk* current = (DataBlk*)flash_emu;
-	DataBlk* previous = (DataBlk*)flash_emu;
+	FmBlock* current = (FmBlock*)flash_emu;
+	FmBlock* previous = (FmBlock*)flash_emu;
 	uint32_t address = 0;
 	do {
 		if (current->len == 0xFFFFFFFF) { // the block is empty
@@ -45,7 +45,7 @@ femu_allocate(uint16_t size)
 			previous = current;
 
 			// shift to the next block
-			current = (DataBlk*)((uint8_t*)current + current->len + sizeof(DataBlk));
+			current = (FmBlock*)((uint8_t*)current + current->len + sizeof(FmBlock));
 			
 			// check if the current address doesn't exceed flash boundary
 			if ((uint32_t)current + size >= (uint32_t)flash_emu + fs_upper_addr) {
@@ -57,7 +57,7 @@ femu_allocate(uint16_t size)
 	return address;
 }
 
-FMResult
+FmResult
 femu_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
 	if (offset + data_len > fs_upper_addr) {
@@ -68,7 +68,7 @@ femu_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 	return fmr_Ok;
 }
 
-FMResult
+FmResult
 femu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
 	if (offset + data_len > fs_upper_addr) {
@@ -83,28 +83,27 @@ femu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
  * Creates an 64 Kbyte flash memory simulation space.
  * If file already exists, it will be reused.
  */
-FMResult
+FmResult
 femu_open_flash(void)
 {
 	size_t bytesRead = 0;
-	FMResult result = fmr_Ok;
+	FmResult result = fmr_Ok;
 
 	do {
-		if (aFile != NULL) {
+		if (aFile != NULL) { // the 'FunFS.bin' is already openned. Bail out.
 			break;
 		}
-		memset(flash_emu, 0xFF, FLASH_SIZE_TOTAL);
 
-		result = fmr_Err;
-		aFile = fopen(FLASH_BINARY, "r+");
+		memset(flash_emu, 0xFF, FLASH_SIZE_TOTAL);
+		aFile = fopen(FLASH_BINARY, "r+"); // 'r+' means 'open existing file'. I.e. file must already present.
 		if (aFile != NULL) {
 			bytesRead = fread(flash_emu, 1, FLASH_SIZE_TOTAL, aFile);
-			if (bytesRead != FLASH_SIZE_TOTAL) {
+			if (bytesRead != FLASH_SIZE_TOTAL) { // we expect that the fread() will fetch 'FLASH_SIZE_TOTAL' bytes of data.
 				result = fmr_readErr;
 				break;
 			}
 		} else {
-			aFile = fopen(FLASH_BINARY, "w");
+			aFile = fopen(FLASH_BINARY, "w"); // If file doesn't exist, then 'w' argument will create it.
 		}
 
 		if (aFile == NULL) {
@@ -112,21 +111,20 @@ femu_open_flash(void)
 			break;
 		}
 
-		result = fmr_Ok;
 	} while (0);
 
 	return result;
 }
 
-static FMResult
+static FmResult
 update_flash(void)
 {
-	FMResult result = fmr_Ok;
+	FmResult result = fmr_Ok;
 
 	do {
 		if (aFile == NULL) {
 			fprintf(stderr, "ERROR: can't update %s binary because file isn't openned yet.\n", FLASH_BINARY);
-			result = fmr_Err;
+			result = fmr_fopenErr;
 			break;
 		}
 		
@@ -145,10 +143,10 @@ update_flash(void)
 	return result;
 }
 
-FMResult
+FmResult
 femu_close_flash(void)
 {
-	FMResult result = fmr_Ok;
+	FmResult result = fmr_Ok;
 
 	if (aFile != NULL) {
 		result = update_flash();

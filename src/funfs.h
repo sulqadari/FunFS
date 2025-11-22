@@ -50,9 +50,9 @@ typedef struct {
 	uint16_t fid;
 } DfEntry;
 
-FMResult ffs_initialize(void);
+FmResult ffs_initialize(void);
 
-FMResult ffs_create_file(uint8_t* data, uint32_t len);
-FMResult ffs_select_file(uint32_t fid);
+FmResult ffs_create_file(uint8_t* data, uint32_t len);
+FmResult ffs_select_file(uint32_t fid);
 
 #endif /* FUNFS_FILESYSTEM_H */
