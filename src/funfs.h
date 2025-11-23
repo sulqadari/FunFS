@@ -50,6 +50,11 @@ typedef struct {
 	uint16_t fid;
 } DfEntry;
 
+typedef struct {
+	uint32_t count;
+	DfEntry entries[256 / sizeof(DfEntry) - 1];
+} DfPayload;
+
 FmResult ffs_initialize(void);
 
 FmResult ffs_create_file(uint8_t* data, uint32_t len);

@@ -17,6 +17,8 @@ ffs_initialize(void)
 {
 	FmResult result = fmr_Err;
 	
+	(void)sizeof(DfEntry);
+	(void)sizeof(DfPayload);
 	(void)sizeof(Inode);
 	(void)sizeof(SuperBlock);
 	(void)sizeof(ValidityArea);
@@ -89,6 +91,11 @@ ffs_initialize(void)
 	}
 
 #define advance() (curr += len)
+
+/** pointer to the beginning of DfPayload field. */
+#define df_counter(expr) (uint32_t)&((DfPayload*)expr->data)
+/** pointer to the DfPayload::entries array */
+#define df_entries(expr) ((DfPayload*)expr->data)->entries
 
 static uint16_t
 from_short(uint8_t* buff)
@@ -200,11 +207,11 @@ update_parent_size(Inode* current)
 			break;
 		}
 
-		// get the inode index of subsequent parent. Note that the '0' points to MF.
-		idx = ((DfEntry*)(parent->data + sizeof(DfEntry)))->iNode;
-		fid = ((DfEntry*)(parent->data + sizeof(DfEntry)))->fid;
+		// get the inode index of subsequent parent.
+		idx = df_entries(parent)[1].iNode;
+		fid = df_entries(parent)[1].fid;
 
-	} while (fid != 0);
+	} while (fid != 0); // fid=0000 means we've reached the end of file hierarchy
 
 	return result;
 }
@@ -222,7 +229,7 @@ data_block_for_df(Inode* current)
 		}
 
 		// The size of DF is always 256 bytes.
-		current->size = 256;
+		current->size = sizeof(DfPayload);
 		// allocate a data block for the newly created DF
 		if ((current->data = femu_allocate(current->size)) == 0x00) {
 			result = fmr_writeErr;
@@ -230,15 +237,18 @@ data_block_for_df(Inode* current)
 		}
 
 		// the current dir now becomes 'parent' of the newly created one.
-		va.parent_dir.fid  = va.current_dir.fid;
+		va.parent_dir.fid   = va.current_dir.fid;
 		va.parent_dir.iNode = va.current_dir.iNode;
 
 		// the newly created folder becomes the current one.
-		va.current_dir.fid = current->fid;
+		va.current_dir.fid   = current->fid;
 		va.current_dir.iNode = va.sblk.inodes_count;
-
-		femu_write(current->data,                   (uint8_t*)&va.current_dir, sizeof(DfEntry));
-		femu_write(current->data + sizeof(DfEntry), (uint8_t*)&va.parent_dir,  sizeof(DfEntry));
+		
+		uint32_t count = 0;
+		femu_write((uint32_t)&df_entries(current)[count++], (uint8_t*)&va.current_dir, sizeof(DfEntry));
+		femu_write((uint32_t)&df_entries(current)[count++], (uint8_t*)&va.parent_dir,  sizeof(DfEntry));
+		femu_write(df_counter(current)->count, (uint8_t*)&count,  sizeof(uint32_t));
+		
 		// the MF is the first element in the file system. There is nothing to do.
 		if (current->fid == FID_MASTER_FILE) {
 			break;
