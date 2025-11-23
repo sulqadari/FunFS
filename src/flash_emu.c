@@ -11,8 +11,8 @@ static uint32_t fs_upper_addr = 0x00;
 static void
 femu_set_bounds(void)
 {
-	fs_start_addr = 0;
-	fs_upper_addr = FLASH_SIZE_TOTAL;
+	fs_start_addr = (uint32_t)&flash_emu;
+	fs_upper_addr = fs_start_addr + FLASH_SIZE_TOTAL;
 }
 
 uint32_t
@@ -22,8 +22,11 @@ femu_get_start_address(void)
 	return fs_start_addr;
 }
 
+#if defined (FEMU_USE_INDICES)
 #define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(FmBlock)) - (uint32_t)flash_emu
-
+#else
+#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(FmBlock))
+#endif
 uint32_t
 femu_allocate(uint16_t size)
 {
@@ -64,6 +67,8 @@ femu_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 		return fmr_writeErr;
 	}
 
+	// address to index convertation
+	offset = offset - fs_start_addr;
 	memcpy(&flash_emu[offset], data, data_len);
 	return fmr_Ok;
 }
@@ -75,6 +80,8 @@ femu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
 		return fmr_readErr;
 	}
 
+	// address to index convertation
+	offset = offset - fs_start_addr;
 	memcpy(data, &flash_emu[offset], data_len);
 	return fmr_Ok;
 }
@@ -86,7 +93,7 @@ femu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
 FmResult
 femu_open_flash(void)
 {
-	size_t bytesRead = 0;
+	// size_t bytesRead = 0;
 	FmResult result = fmr_Ok;
 
 	do {
@@ -95,16 +102,7 @@ femu_open_flash(void)
 		}
 
 		memset(flash_emu, 0xFF, FLASH_SIZE_TOTAL);
-		aFile = fopen(FLASH_BINARY, "r+"); // 'r+' means 'open existing file'. I.e. file must already present.
-		if (aFile != NULL) {
-			bytesRead = fread(flash_emu, 1, FLASH_SIZE_TOTAL, aFile);
-			if (bytesRead != FLASH_SIZE_TOTAL) { // we expect that the fread() will fetch 'FLASH_SIZE_TOTAL' bytes of data.
-				result = fmr_readErr;
-				break;
-			}
-		} else {
-			aFile = fopen(FLASH_BINARY, "w"); // If file doesn't exist, then 'w' argument will create it.
-		}
+		aFile = fopen(FLASH_BINARY, "w");
 
 		if (aFile == NULL) {
 			result = fmr_fopenErr;

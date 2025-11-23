@@ -214,6 +214,7 @@ data_block_for_df(Inode* current)
 		// increasing the inode->size value of each parent folder.
 		Inode* inode_array = (Inode*)va.sblk.inodes_start;
 		uint16_t idx = va.parent_dir.iNode;
+		uint16_t fid = va.parent_dir.fid;
 		
 		do {
 			Inode* parent = (Inode*)&inode_array[idx];
@@ -228,9 +229,10 @@ data_block_for_df(Inode* current)
 			}
 
 			// get the inode index of subsequent parent. Note that the '0' points to MF.
-			idx = ((DfEntry*)parent->data)->iNode;
+			idx = ((DfEntry*)(parent->data + sizeof(DfEntry)))->iNode;
+			fid = ((DfEntry*)(parent->data + sizeof(DfEntry)))->fid;
 
-		} while (idx);
+		} while (fid != 0);
 
 		if (result != fmr_Ok) {
 			break;
