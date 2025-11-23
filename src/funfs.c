@@ -53,12 +53,14 @@ ffs_initialize(void)
 		// OTHERWISE: this is the very first run: no MF, no file system, no nothing.
 		// allocate space on the flash for the SuperBlock
 		if ((va.sblk_addr = femu_allocate(sizeof(SuperBlock))) == 0) {
+			result = fmr_Err;
 			break;
 		}
 
 		// allocate  space on the flash for the Inodes table.
 		uint32_t size = PAGE_SIZE * 6;
 		if ((va.sblk.inodes_start = femu_allocate(size)) == 0) {
+			result = fmr_Err;
 			break;
 		}
 

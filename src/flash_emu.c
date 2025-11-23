@@ -28,6 +28,7 @@ femu_get_start_address(void)
 #else
 #define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(block_t))
 #endif
+
 uint32_t
 femu_allocate(uint16_t size)
 {
@@ -52,7 +53,7 @@ femu_allocate(uint16_t size)
 			current = (block_t*)((uint8_t*)current + current->len + sizeof(block_t));
 			
 			// check if the current address doesn't exceed flash boundary
-			if ((uint32_t)current + size >= (uint32_t)flash_emu + fs_upper_addr) {
+			if ((uint32_t)current + size >= fs_upper_addr) {
 				break;
 			}
 		}

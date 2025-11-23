@@ -27,9 +27,6 @@ typedef struct {
 	uint32_t prev;
 } block_t;
 
-// extern uint8_t flash_emu[];
-// extern const uint32_t fs_start_addr;
-
 uint32_t femu_get_start_address(void);
 
 uint32_t femu_allocate(uint16_t size);
