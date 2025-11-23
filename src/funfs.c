@@ -23,7 +23,7 @@ ffs_initialize(void)
 	do {
 		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
 
-		va.sblk_addr = femu_get_start_address() + sizeof(FmBlock);
+		va.sblk_addr = femu_get_start_address() + sizeof(block_t);
 
 		// Open (or create) persistent storage for a flash memory
 		if ((result = femu_open_flash()) != fmr_Ok) {
@@ -175,6 +175,38 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 	return result;
 }
 
+/** traverse the path from this DF right to the MF,
+ * increasing the inode->size value of each parent folder. */
+static FmResult
+update_parent_size(Inode* current)
+{
+	FmResult result = fmr_Ok;
+	Inode* inode_array = (Inode*)va.sblk.inodes_start;
+	uint16_t idx = va.parent_dir.iNode;
+	uint16_t fid = va.parent_dir.fid;
+	
+	do {
+		Inode* parent = (Inode*)&inode_array[idx];
+		if (parent->desc[0] != ft_DF) {
+			result = fmr_Err;
+			break;
+		}
+		// add the size of newly create folder to the size of subsequent parent folder.
+		uint16_t updated_size = parent->size + current->size;
+		if ((result = femu_write((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != fmr_Ok) {
+			result = fmr_writeErr;
+			break;
+		}
+
+		// get the inode index of subsequent parent. Note that the '0' points to MF.
+		idx = ((DfEntry*)(parent->data + sizeof(DfEntry)))->iNode;
+		fid = ((DfEntry*)(parent->data + sizeof(DfEntry)))->fid;
+
+	} while (fid != 0);
+
+	return result;
+}
+
 static FmResult
 data_block_for_df(Inode* current)
 {
@@ -210,31 +242,7 @@ data_block_for_df(Inode* current)
 			break;
 		}
 
-		// traverse the path from this DF right to the MF,
-		// increasing the inode->size value of each parent folder.
-		Inode* inode_array = (Inode*)va.sblk.inodes_start;
-		uint16_t idx = va.parent_dir.iNode;
-		uint16_t fid = va.parent_dir.fid;
-		
-		do {
-			Inode* parent = (Inode*)&inode_array[idx];
-			if (parent->desc[0] != ft_DF) {
-				result = fmr_Err;
-				break;
-			}
-			// add the size of newly create folder to the size of subsequent parent folder.
-			uint16_t updated_size = parent->size + current->size;
-			if ((result = femu_write((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != fmr_Ok){
-				break;
-			}
-
-			// get the inode index of subsequent parent. Note that the '0' points to MF.
-			idx = ((DfEntry*)(parent->data + sizeof(DfEntry)))->iNode;
-			fid = ((DfEntry*)(parent->data + sizeof(DfEntry)))->fid;
-
-		} while (fid != 0);
-
-		if (result != fmr_Ok) {
+		if ((result = update_parent_size(current)) != fmr_Ok) {
 			break;
 		}
 

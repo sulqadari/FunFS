@@ -25,7 +25,7 @@ typedef enum {
 typedef struct {
 	uint32_t len;
 	uint32_t prev;
-} FmBlock;
+} block_t;
 
 // extern uint8_t flash_emu[];
 // extern const uint32_t fs_start_addr;

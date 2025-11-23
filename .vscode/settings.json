@@ -4,6 +4,7 @@
 		"*.incl": "makefile",
 		"*.l": "plaintext",
 		"*.y": "plaintext",
-		"funfs.h": "c"
+		"funfs.h": "c",
+		"flash_emu.h": "c"
 	}
 }

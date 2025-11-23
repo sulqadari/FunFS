@@ -11,6 +11,7 @@ static uint32_t fs_upper_addr = 0x00;
 static void
 femu_set_bounds(void)
 {
+	(void)sizeof(flash_emu);
 	fs_start_addr = (uint32_t)&flash_emu;
 	fs_upper_addr = fs_start_addr + FLASH_SIZE_TOTAL;
 }
@@ -23,16 +24,16 @@ femu_get_start_address(void)
 }
 
 #if defined (FEMU_USE_INDICES)
-#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(FmBlock)) - (uint32_t)flash_emu
+#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(block_t)) - (uint32_t)flash_emu
 #else
-#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(FmBlock))
+#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(block_t))
 #endif
 uint32_t
 femu_allocate(uint16_t size)
 {
 	size = WORD_ALIGNED(size);
-	FmBlock* current = (FmBlock*)flash_emu;
-	FmBlock* previous = (FmBlock*)flash_emu;
+	block_t* current = (block_t*)flash_emu;
+	block_t* previous = (block_t*)flash_emu;
 	uint32_t address = 0;
 	do {
 		if (current->len == 0xFFFFFFFF) { // the block is empty
@@ -48,7 +49,7 @@ femu_allocate(uint16_t size)
 			previous = current;
 
 			// shift to the next block
-			current = (FmBlock*)((uint8_t*)current + current->len + sizeof(FmBlock));
+			current = (block_t*)((uint8_t*)current + current->len + sizeof(block_t));
 			
 			// check if the current address doesn't exceed flash boundary
 			if ((uint32_t)current + size >= (uint32_t)flash_emu + fs_upper_addr) {
@@ -102,7 +103,7 @@ femu_open_flash(void)
 		}
 
 		memset(flash_emu, 0xFF, FLASH_SIZE_TOTAL);
-		aFile = fopen(FLASH_BINARY, "w");
+  		aFile = fopen(FLASH_BINARY, "w");
 
 		if (aFile == NULL) {
 			result = fmr_fopenErr;
