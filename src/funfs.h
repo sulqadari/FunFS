@@ -57,7 +57,7 @@ typedef struct {
 
 FmResult ffs_initialize(void);
 
-FmResult ffs_create_file(uint8_t* data, uint32_t len);
-FmResult ffs_select_file(uint32_t fid);
+FmResult ffs_create_file(uint8_t* data, uint32_t data_len);
+FmResult ffs_select_file(uint8_t* data, uint32_t data_len);
 
 #endif /* FUNFS_FILESYSTEM_H */

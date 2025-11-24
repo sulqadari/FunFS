@@ -260,8 +260,79 @@ test_04(void)
 	return result;
 }
 
+static uint8_t
+test_05(void)
+{
+	FmResult result = fmr_Ok;
+	uint16_t len = 0;
+	cmd_t cmds[10];
+	uint8_t idx = 0;
+
+	do {
+		if (ffs_initialize()) {
+			printf("ERROR: failed to initialize file system\n");
+			break;
+		}
+
+		cmds[idx].cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		cmds[idx++].len = len;
+		cmds[idx].cmd = hex_to_bytes("6236 8302 4F00 8201 38 8407 A0000002471001 8D02 4003 8A01 01 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		cmds[idx++].len = len;
+		cmds[idx].cmd = hex_to_bytes("6236 8302 5F00 8201 38 8407 A0000002471001 8D02 4003 8A01 01 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		cmds[idx++].len = len;
+
+		for (uint8_t i = 0; i < idx; ++i) {
+			if (ffs_create_file(cmds[i].cmd, cmds[i].len)) {
+				printf("ERROR: failed cmd No %d\n", i);
+				result = fmr_Err;
+				break;
+			}
+		}
+
+		for (uint8_t i = 0; i < idx; ++i) {
+			free(cmds[i].cmd);
+			cmds[i].len = 0;
+		}
+	} while (0);
+
+	if (result != fmr_Ok) {
+		return result;
+	}
+
+	do {
+		idx = 0;
+		cmds[idx].cmd = hex_to_bytes("3F00", &len);
+		cmds[idx++].len = len;
+
+		cmds[idx].cmd = hex_to_bytes("4F00", &len);
+		cmds[idx++].len = len;
+
+		cmds[idx].cmd = hex_to_bytes("5F00", &len);
+		cmds[idx++].len = len;
+
+		cmds[idx].cmd = hex_to_bytes("3F00", &len);
+		cmds[idx++].len = len;
+
+		for (uint8_t i = 0; i < idx; ++i) {
+			if (ffs_select_file(cmds[i].cmd, cmds[i].len)) {
+				printf("ERROR: failed cmd No %d\n", i);
+				result = fmr_Err;
+				break;
+			}
+		}
+	} while (0);
+	
+	for (uint8_t i = 0; i < idx; ++i) {
+		free(cmds[i].cmd);
+		cmds[i].len = 0;
+	}
+	
+	femu_close_flash();
+	return result;
+}
+
 int
 main(int argc, char* argv[])
 {
-	return test_04();
+	return test_05();
 }

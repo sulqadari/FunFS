@@ -389,9 +389,59 @@ ffs_create_file(uint8_t* data, uint32_t data_len)
 }
 
 FmResult
-ffs_select_file(uint32_t fid)
+ffs_select_file(uint8_t* data, uint32_t data_len)
 {
-	FmResult result = fmr_Err;
+	FmResult result    = fmr_Err;
+	uint16_t* ptr      = (uint16_t*)data;
+
+	uint16_t idx       = va.current_dir.iNode;
+	Inode* inode_array = (Inode*)va.sblk.inodes_start;
+	Inode* currentDf   = (Inode*)&inode_array[idx];
+	DfEntry toBeSelected;
+	uint32_t count = 0;
+
+	// This machinery expects that the data length is multiple of 'uint16_t'.
+	while (data_len) {
+		toBeSelected.fid = *ptr++;
+		
+		// special case: MF is always at idx '0x00' and must be selected immediately.
+		if (toBeSelected.fid == FID_MASTER_FILE) {
+			toBeSelected.iNode = 0x00;
+			result = fmr_Ok;
+			break;
+		}
+
+		// get the 'count' of files under the current folder.
+		if ((result = femu_read(df_counter(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+			break;
+		}
+
+		for (idx = 0; idx < count; ++idx) {
+
+			DfEntry temp;
+			// write the record about a new child of current folder.
+			if ((result = femu_read((uint32_t)&df_entries(currentDf)[idx], (uint8_t*)&temp, sizeof(DfEntry))) != fmr_Ok) {
+				break;
+			}
+
+			if (toBeSelected.fid == temp.fid) {
+				toBeSelected.iNode = temp.iNode;
+				result = fmr_Ok;
+				break;
+			}
+		}
+		
+		// when 'idx' reachs the 'count' it means that requested file not found.
+		if (result != fmr_Ok || idx >= count) {
+			result = fmr_Err;
+			break;
+		}
+
+		va.current_dir.fid   = toBeSelected.fid;
+		va.current_dir.iNode = toBeSelected.iNode;
+
+		data_len -= 2;
+	}
 
 	return result;
 }
