@@ -3,11 +3,11 @@
 #include <string.h>
 
 typedef struct {
-	DfEntry    parent_dir;
-	DfEntry    current_dir;
-	DfEntry    current_file;
-	SuperBlock sblk;
-	uint32_t   sblk_addr;
+	DfEntry     parent_dir;
+	DfEntry     current_dir;
+	DfEntry     current_file;
+	SuperBlock  sblk;
+	uint32_t    sblk_addr;
 } ValidityArea;
 
 static ValidityArea va;
@@ -38,12 +38,12 @@ ffs_initialize(void)
 
 		// IF: the file system is already initialized, then just set the MF as the current folder and bail out.
 		if (va.sblk.magic == 0xCAFEBABE) {
-			// set the MF as the current dir
-			va.parent_dir.fid  = FID_MASTER_FILE;
-			va.parent_dir.iNode = 0x00; // Master file has zeroth index in iNode table
+			// The master file hasn't parent dir.
+			va.parent_dir.fid   = 0x00;
+			va.parent_dir.iNode = 0x00;
 
-			// The master file hasn't parent dir. Thus this field closures to master file it self.
-			va.current_dir.fid  = FID_MASTER_FILE;
+			// set the MF as the current dir
+			va.current_dir.fid   = FID_MASTER_FILE;
 			va.current_dir.iNode = 0x00; // Master file has zeroth index in iNode table
 			
 			// At startup there is no
@@ -184,6 +184,46 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 	return result;
 }
 
+/** Adds to the DfPayload::entries array an entry about newly created file */
+static FmResult
+add_record_to_parent(Inode* current)
+{
+	FmResult result    = fmr_Ok;
+
+	// choose the parent depending on file type to be created:
+	// If we're about to create an EF, then we should write data into currentDF.
+	// Otherwise we need to update DfPayload::entries of the parentDF.
+	uint16_t idx       = (current->desc[0] == ft_DF) ? va.parent_dir.iNode : va.current_dir.iNode;
+	Inode* inode_array = (Inode*)va.sblk.inodes_start;
+	Inode* currentDf   = (Inode*)&inode_array[idx];
+	DfEntry newRecord  = {
+		.iNode = va.sblk.inodes_count,
+		.fid = current->fid
+	};
+
+	do {
+		uint32_t count = 0;
+		
+		// get the 'count' of parent folder. It will be used as an index into 'entries' array
+		if ((result = femu_read(df_counter(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+			break;
+		}
+		
+		// write the record about a new child of current folder.
+		if ((result = femu_write((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DfEntry))) != fmr_Ok) {
+			break;
+		}
+		
+		// update the 'count'
+		if ((result = femu_write(df_counter(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+			break;
+		}
+
+	} while (0);
+
+	return result;
+}
+
 /** traverse the path from this DF right to the MF,
  * increasing the inode->size value of each parent folder. */
 static FmResult
@@ -193,7 +233,7 @@ update_parent_size(Inode* current)
 	Inode* inode_array = (Inode*)va.sblk.inodes_start;
 	uint16_t idx = va.parent_dir.iNode;
 	uint16_t fid = va.parent_dir.fid;
-	
+
 	do {
 		Inode* parent = (Inode*)&inode_array[idx];
 		if (parent->desc[0] != ft_DF) {
@@ -251,6 +291,10 @@ data_block_for_df(Inode* current)
 		
 		// the MF is the first element in the file system. There is nothing to do.
 		if (current->fid == FID_MASTER_FILE) {
+			break;
+		}
+
+		if ((result = add_record_to_parent(current)) != fmr_Ok) {
 			break;
 		}
 
@@ -348,5 +392,6 @@ FmResult
 ffs_select_file(uint32_t fid)
 {
 	FmResult result = fmr_Err;
+
 	return result;
 }
