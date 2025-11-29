@@ -37,13 +37,16 @@ remove_spaces(const char* str)
 	}
 
 	// allocate new array. Its length should be shorter for number of spaces
-	size_t len = strlen(str);
-	result = malloc(len - spaces);
+	size_t source_len = strlen(str);
+
+	// subtract the number of specrs from initial length and add one for '\0' sign
+	size_t len = (source_len - spaces) + 1;
+	result = malloc(len);
 	if (result == NULL)
 		return result;
 	
 	// copy symbols into new array
-	for (uint32_t from = 0, to = 0; from < len; ++from) {
+	for (uint32_t from = 0, to = 0; from < source_len; ++from) {
 		if ((str[from] != ' ') && (str[from] != '\t')) {
 			result[to] = str[from];
 			to++;
@@ -51,7 +54,7 @@ remove_spaces(const char* str)
 			continue;
 		}
 	}
-
+	result[len - 1] = '\0';
 	return result;
 }
 
@@ -301,7 +304,7 @@ test_05(void)
 
 	do {
 		idx = 0;
-		cmds[idx].cmd = hex_to_bytes("3F00", &len);
+		cmds[idx].cmd = hex_to_bytes("3F00 4F00 5F00", &len);
 		cmds[idx++].len = len;
 
 		cmds[idx].cmd = hex_to_bytes("4F00", &len);
@@ -314,6 +317,11 @@ test_05(void)
 		cmds[idx++].len = len;
 
 		for (uint8_t i = 0; i < idx; ++i) {
+			if (cmds[i].cmd == NULL) {
+				printf("ERROR: cmd No %d is NULL\n", i);
+				result = fmr_Err;
+				break;
+			}
 			if (ffs_select_file(cmds[i].cmd, cmds[i].len)) {
 				printf("ERROR: failed cmd No %d\n", i);
 				result = fmr_Err;

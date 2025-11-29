@@ -90,7 +90,7 @@ ffs_initialize(void)
 		break;                 \
 	}
 
-#define advance() (curr += len)
+#define advance(expr) (expr += len)
 
 /** pointer to the beginning of DfPayload field. */
 #define df_counter(expr) (uint32_t)&((DfPayload*)expr->data)
@@ -98,7 +98,7 @@ ffs_initialize(void)
 #define df_entries(expr) ((DfPayload*)expr->data)->entries
 
 static uint16_t
-from_short(uint8_t* buff)
+get_short(uint8_t* buff)
 {
 	return (((uint16_t)buff[0] << 8) | ((uint16_t)buff[1] & 0xFF));
 }
@@ -127,48 +127,48 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 			switch (tag) {
 				case 0x80: { // File size
 					assert_eq(len, 2);
-					inode->size = from_short(curr);
-					advance();
+					inode->size = get_short(curr);
+					advance(curr);
 				} break;
 				case 0x82: { // file descriptor (e.g. DF, EF, LF, etc.)
 					assert_leq(len, 5);
 					memcpy(&inode->desc, curr, len);
-					advance();
+					advance(curr);
 				} break;
 				case 0x83: { // file ID (e.g. 3F00, 0101, etc.)
 					assert_eq(len, 2);
-					inode->fid = from_short(curr);
-					advance();
+					inode->fid = get_short(curr);
+					advance(curr);
 				} break;
 				case 0x84: { // application AID (for DFs only)
 					assert_leq(len, 16);
 					memcpy(&inode->aid, curr, len);
-					advance();
+					advance(curr);
 				} break;
 				case 0x88: { // short file ID
 					assert_eq(len, 1);
 					inode->sfi = *curr;
-					advance();
+					advance(curr);
 				} break;
 				case 0x8A: { // Life cycle stage
 					assert_eq(len, 1);
 					inode->lcs = *curr;
-					advance();
+					advance(curr);
 				} break;
 				case 0x8C: {  // security attributes in compact format
 					assert_leq(len, 7);
 					memcpy(&inode->compact, curr, len);
-					advance();
+					advance(curr);
 				} break;
 				case 0x8D: { // the FID of associated securiy environment
 					assert_eq(len, 2);
-					inode->se = from_short(curr);
-					advance();
+					inode->se = get_short(curr);
+					advance(curr);
 				} break;
 				case 0xAB: {
 					assert_leq(len, 20);
 					memcpy(&inode->expanded, curr, len);
-					advance();
+					advance(curr);
 				} break;
 				default: {
 					result = fmr_Err;
@@ -391,57 +391,29 @@ ffs_create_file(uint8_t* data, uint32_t data_len)
 FmResult
 ffs_select_file(uint8_t* data, uint32_t data_len)
 {
-	FmResult result    = fmr_Err;
-	uint16_t* ptr      = (uint16_t*)data;
+	FmResult result = fmr_Err;
+	uint8_t* ptr    = data;
 
 	uint16_t idx       = va.current_dir.iNode;
 	Inode* inode_array = (Inode*)va.sblk.inodes_start;
 	Inode* currentDf   = (Inode*)&inode_array[idx];
+
 	DfEntry toBeSelected;
 	uint32_t count = 0;
 
 	// This machinery expects that the data length is multiple of 'uint16_t'.
-	while (data_len) {
-		toBeSelected.fid = *ptr++;
-		
+	do {
+		toBeSelected.fid = get_short(ptr);
+
 		// special case: MF is always at idx '0x00' and must be selected immediately.
-		if (toBeSelected.fid == FID_MASTER_FILE) {
-			toBeSelected.iNode = 0x00;
-			result = fmr_Ok;
-			break;
-		}
 
-		// get the 'count' of files under the current folder.
-		if ((result = femu_read(df_counter(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
-			break;
-		}
+		ptr += 2;
+	} while (data_len -= 2);
 
-		for (idx = 0; idx < count; ++idx) {
-
-			DfEntry temp;
-			// write the record about a new child of current folder.
-			if ((result = femu_read((uint32_t)&df_entries(currentDf)[idx], (uint8_t*)&temp, sizeof(DfEntry))) != fmr_Ok) {
-				break;
-			}
-
-			if (toBeSelected.fid == temp.fid) {
-				toBeSelected.iNode = temp.iNode;
-				result = fmr_Ok;
-				break;
-			}
-		}
-		
-		// when 'idx' reachs the 'count' it means that requested file not found.
-		if (result != fmr_Ok || idx >= count) {
-			result = fmr_Err;
-			break;
-		}
-
-		va.current_dir.fid   = toBeSelected.fid;
-		va.current_dir.iNode = toBeSelected.iNode;
-
-		data_len -= 2;
-	}
+	va.current_dir.fid   = toBeSelected.fid;
+	va.current_dir.iNode = toBeSelected.iNode;
+	va.parent_dir.fid    = 0x00;
+	va.parent_dir.iNode  = 0x00;
 
 	return result;
 }
