@@ -298,7 +298,7 @@ create_dir_hierarchy(void)
 	return result;
 }
 
-static uint8_t
+static FmResult
 test_04(void)
 {
 	FmResult result = fmr_Ok;
@@ -309,7 +309,7 @@ test_04(void)
 	return result;
 }
 
-static uint8_t
+static FmResult
 test_05(void)
 {
 	FmResult result = fmr_Ok;
@@ -360,7 +360,7 @@ test_05(void)
 	return result;
 }
 
-static uint8_t
+static FmResult
 test_06(void)
 {
 	FmResult result = fmr_Ok;
@@ -399,7 +399,7 @@ test_06(void)
 	return result;
 }
 
-static uint8_t
+static FmResult
 test_07(void)
 {
 	FmResult result = fmr_Ok;
@@ -440,5 +440,10 @@ test_07(void)
 int
 main(int argc, char* argv[])
 {
-	return test_07();
+	// test_04();
+	// test_05();
+	test_06();
+	test_07();
+
+	return 0;
 }

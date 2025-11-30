@@ -151,6 +151,7 @@ femu_close_flash(void)
 	if (aFile != NULL) {
 		result = update_flash();
 		fclose(aFile);
+		aFile = NULL;
 	}
 
 	return result;
