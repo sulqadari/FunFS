@@ -136,7 +136,7 @@ test_01(void)
 {
 	emu_open_flash();
 
-	printf("INode size: %d\n", sizeof(Inode));
+	printf("INode size: %d\n", sizeof(INode));
 	for (uint32_t i = 0; i < FLASH_SIZE_TOTAL; i += sizeof(tempAnsr)) {
 		if(emu_read(i, tempAnsr, sizeof(tempAnsr)) != fmr_Ok) {
 			fprintf(stderr, "EFFOR: failed to read from index %d\n", i);

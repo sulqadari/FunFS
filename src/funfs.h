@@ -6,7 +6,7 @@
 
 // allocate PERSENT percents for Inodes
 #define PERSENT 10
-#define INODES_TOTAL (((FLASH_SIZE_TOTAL * PERSENT) / 100) / sizeof(Inode))
+#define INODES_TOTAL (((FLASH_SIZE_TOTAL * PERSENT) / 100) / sizeof(INode))
 
 #define FID_NONE          0xFFFF
 #define FID_MASTER_FILE   0x3F00
@@ -32,7 +32,7 @@ typedef struct {
 	uint16_t se;          // 0x8D; the FID of associated securiy environment (DF only)
 	uint8_t expanded[20]; // 0xAB; security attribute in expanded format 
 	uint32_t data;        // points to the associated data block
-} Inode;
+} INode;
 
 typedef struct {
 	uint32_t magic;
@@ -48,12 +48,12 @@ typedef struct {
 typedef struct {
 	uint16_t iNode;
 	uint16_t fid;
-} DfEntry;
+} DF_Record;
 
 typedef struct {
 	uint32_t count;
-	DfEntry entries[256 / sizeof(DfEntry) - 1];
-} DfPayload;
+	DF_Record entries[256 / sizeof(DF_Record) - 1];
+} DF_Payload;
 
 emu_Result ffs_initialize(void);
 
