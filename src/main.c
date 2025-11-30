@@ -360,8 +360,6 @@ test_05(void)
 	return result;
 }
 
-#define assert(expr)
-
 static uint8_t
 test_06(void)
 {
@@ -401,8 +399,46 @@ test_06(void)
 	return result;
 }
 
+static uint8_t
+test_07(void)
+{
+	FmResult result = fmr_Ok;
+	uint16_t len = 0;
+	cmd_t cmds[5];
+	uint8_t idx = 0;
+	do {
+		if (ffs_initialize()) {
+			printf("ERROR: failed to initialize file system\n");
+			break;
+		}
+
+		cmds[idx].cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		cmds[idx++].len = len;
+		cmds[idx].cmd = hex_to_bytes("6217 8302 1111 8202 0100 8002 003F 8A01 01 8C06 6BFFFFFF1111", &len);
+		cmds[idx++].len = len;
+		cmds[idx].cmd = hex_to_bytes("6217 8302 1112 8202 0100 8002 007F 8A01 01 8C06 6BFFFFFF1111", &len);
+		cmds[idx++].len = len;
+		
+		for (uint8_t i = 0; i < idx; ++i) {
+			if (ffs_create_file(cmds[i].cmd, cmds[i].len)) {
+				printf("ERROR: failed cmd No %d\n", i);
+				result = fmr_Err;
+				break;
+			}
+		}
+		
+		for (uint8_t i = 0; i < idx; ++i) {
+			free(cmds[i].cmd);
+			cmds[i].len = 0;
+		}
+	} while (0);
+
+	femu_close_flash();
+	return result;
+}
+
 int
 main(int argc, char* argv[])
 {
-	return test_06();
+	return test_07();
 }

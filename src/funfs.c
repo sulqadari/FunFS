@@ -12,11 +12,6 @@ typedef struct {
 
 static ValidityArea va;
 
-/** pointer to the beginning of DfPayload field. */
-#define df_data(expr) (uint32_t)&((DfPayload*)expr->data)
-/** pointer to the DfPayload::entries array */
-#define df_entries(expr) ((DfPayload*)expr->data)->entries
-
 static void
 va_set_parent_df(uint16_t fid, uint16_t node)
 {
@@ -193,11 +188,16 @@ parse_params(Inode* inode, uint8_t* data, uint32_t data_len)
 	return result;
 }
 
+/** pointer to the beginning of DfPayload field. */
+#define df_data(expr) (uint32_t)&((DfPayload*)expr->data)
+/** pointer to the DfPayload::entries array */
+#define df_entries(expr) ((DfPayload*)expr->data)->entries
+
 /** Adds to the DfPayload::entries array an entry about newly created file */
 static FmResult
 add_record_to_parent(Inode* current)
 {
-	FmResult result    = fmr_Ok;
+	FmResult result = fmr_Ok;
 
 	// choose the parent depending on file type to be created:
 	// If we're about to create an EF, then we should start updating the 'size' field from current folder.
@@ -205,11 +205,7 @@ add_record_to_parent(Inode* current)
 	uint16_t idx       = (current->desc[0] == ft_DF) ? va.parent_dir.iNode : va.current_dir.iNode;
 	Inode* inode_array = (Inode*)va.sblk.inodes_start;
 	Inode* currentDf   = (Inode*)&inode_array[idx];
-	DfEntry newRecord  = {
-		.iNode = va.sblk.inodes_count,
-		.fid = current->fid
-	};
-
+	
 	do {
 		uint32_t count = 0;
 		
@@ -218,12 +214,13 @@ add_record_to_parent(Inode* current)
 			break;
 		}
 		
+		DfEntry newRecord = {.iNode = va.sblk.inodes_count, .fid = current->fid};
 		// write the record about a new child of current folder.
 		if ((result = femu_write((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DfEntry))) != fmr_Ok) {
 			break;
 		}
 		
-		// update the 'count'
+		// update the 'count' of parent folder.
 		if ((result = femu_write(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
 			break;
 		}
@@ -320,11 +317,28 @@ data_block_for_df(Inode* new_df_node)
 }
 
 static FmResult
-data_block_for_ef(Inode* inode)
+data_block_for_ef(Inode* new_ef_node)
 {
 	FmResult result = fmr_Ok;
 
 	do {
+		
+		// allocate a data block for the newly created DF
+		if ((new_ef_node->data = femu_allocate(new_ef_node->size)) == 0x00) {
+			result = fmr_writeErr;
+			break;
+		}
+
+		va_set_current_ef(new_ef_node->fid, va.sblk.inodes_count);
+
+		// update DfEntry array of its parent
+		if ((result = add_record_to_parent(new_ef_node)) != fmr_Ok) {
+			break;
+		}
+		// and update the 'size' field of its parent dirs.
+		if ((result = update_parent_size(new_ef_node)) != fmr_Ok) {
+			break;
+		}
 
 	} while (0);
 
@@ -466,6 +480,7 @@ FmResult
 ffs_select_by_path(uint8_t* data, uint32_t data_len)
 {
 	FmResult result = fmr_Err;
+#if (0)
 	uint8_t* ptr    = data;
 
 	uint16_t idx       = va.current_dir.iNode;
@@ -484,6 +499,7 @@ ffs_select_by_path(uint8_t* data, uint32_t data_len)
 		
 		ptr += 2;
 	} while (data_len -= 2);
+#endif /* 0 */
 
 	return result;
 }
