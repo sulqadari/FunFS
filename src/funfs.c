@@ -200,8 +200,8 @@ add_record_to_parent(Inode* current)
 	FmResult result    = fmr_Ok;
 
 	// choose the parent depending on file type to be created:
-	// If we're about to create an EF, then we should write data into currentDF.
-	// Otherwise we need to update DfPayload::entries of the parentDF.
+	// If we're about to create an EF, then we should start updating the 'size' field from current folder.
+	// Otherwise we need to proceed from parent folder.
 	uint16_t idx       = (current->desc[0] == ft_DF) ? va.parent_dir.iNode : va.current_dir.iNode;
 	Inode* inode_array = (Inode*)va.sblk.inodes_start;
 	Inode* currentDf   = (Inode*)&inode_array[idx];
@@ -400,43 +400,6 @@ ffs_create_file(uint8_t* data, uint32_t data_len)
 	return result;
 }
 
-
-FmResult
-ffs_select_by_path(uint8_t* data, uint32_t data_len)
-{
-	FmResult result = fmr_Err;
-	uint8_t* ptr    = data;
-
-	uint16_t idx       = va.current_dir.iNode;
-	Inode* inode_array = (Inode*)va.sblk.inodes_start;
-	Inode* currentDf   = (Inode*)&inode_array[idx];
-	DfEntry nextFile;
-	uint16_t fid;
-
-	// This machinery expects that the data length is multiple of 'uint16_t'.
-	uint32_t count = 0;
-	do {
-		fid = get_short(ptr);
-		(void)fid;
-		do {
-			// get the 'count' of files in current folder.
-			if ((result = femu_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
-				break;
-			}
-
-			// read a record of the next child
-			if ((result = femu_read((uint32_t)&df_entries(currentDf)[count], (uint8_t*)&nextFile, sizeof(DfEntry))) != fmr_Ok) {
-				break;
-			}
-		} while (0);
-		
-		
-		ptr += 2;
-	} while (data_len -= 2);
-
-	return result;
-}
-
 FmResult
 ffs_select_by_name(const uint16_t fid)
 {
@@ -463,24 +426,64 @@ ffs_select_by_name(const uint16_t fid)
 		}
 
 		DfEntry next;
-		for (uint32_t i = 0; i < count; ++i) {
-			// read a record of the next child
+		uint32_t i;
+		for (i = 0; i < count; ++i) {
+			// read from current DF's payload region an info about subsequent child. 
 			if ((result = femu_read((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DfEntry))) != fmr_Ok) {
 				break;
 			}
 
 			if (fid == next.fid) {
-				currentDf   = (Inode*)&inode_array[next.iNode];
+				currentDf = (Inode*)&inode_array[next.iNode];
+				
+				// If the file we have found isn't of type DF, then just update the 'current file' field
+				// of VA and return.
+				if (currentDf->desc[0] != ft_DF) {
+					va_set_current_ef(next.fid, next.iNode);
+					break;
+				}
+
+				// Otherwise, update the 'parent DF/child DF' values.
 				uint16_t parent_idx = df_entries(currentDf)[1].iNode;
 				uint16_t parent_fid = df_entries(currentDf)[1].fid;
-				
+
 				va_set_parent_df(parent_fid, parent_idx); // Current dir becomes 'parent'
-				va_set_current_df(next.fid, next.iNode);  // New one becomes 'current'
+				va_set_current_df(next.fid, next.iNode);  // the one we're looking for becomes 'current'
 				break;
 			}
 		}
 
+		if (i >= count) {
+			result = fmr_Err;
+		}
+
 	} while (0);
+
+	return result;
+}
+
+FmResult
+ffs_select_by_path(uint8_t* data, uint32_t data_len)
+{
+	FmResult result = fmr_Err;
+	uint8_t* ptr    = data;
+
+	uint16_t idx       = va.current_dir.iNode;
+	Inode* inode_array = (Inode*)va.sblk.inodes_start;
+	Inode* currentDf   = (Inode*)&inode_array[idx];
+	DfEntry nextFile;
+	uint16_t fid;
+
+	// This machinery expects that the data length is multiple of 'uint16_t'.
+	uint32_t count = 0;
+	do {
+		fid = get_short(ptr);
+		(void)fid;
+		
+		// TODO
+		
+		ptr += 2;
+	} while (data_len -= 2);
 
 	return result;
 }

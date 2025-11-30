@@ -221,6 +221,48 @@ typedef struct {
 } cmd_t;
 
 static uint8_t
+create_flat_dir_hierarchy(void)
+{
+	FmResult result = fmr_Ok;
+	uint16_t len = 0;
+	cmd_t cmds[5];
+	uint8_t idx = 0;
+	do {
+		if (ffs_initialize()) {
+			printf("ERROR: failed to initialize file system\n");
+			break;
+		}
+
+		cmds[idx].cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		cmds[idx++].len = len;
+		cmds[idx].cmd = hex_to_bytes("6236 8302 4F00 8201 38 8407 A0000002471001 8D02 4003 8A01 01 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		cmds[idx++].len = len;
+		cmds[idx].cmd = hex_to_bytes("6236 8302 5F00 8201 38 8407 A0000002471001 8D02 4003 8A01 01 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		cmds[idx++].len = len;
+
+		for (uint8_t i = 0; i < idx; ++i) {
+			if (ffs_create_file(cmds[i].cmd, cmds[i].len)) {
+				printf("ERROR: failed cmd No %d\n", i);
+				result = fmr_Err;
+				break;
+			}
+
+			if (ffs_select_by_name(0x3F00)) {
+				printf("ERROR: failed to select MF\n");
+				result = fmr_Err;
+				break;
+			}
+		}
+		
+		for (uint8_t i = 0; i < idx; ++i) {
+			free(cmds[i].cmd);
+			cmds[i].len = 0;
+		}
+	} while (0);
+	return result;
+}
+
+static uint8_t
 create_dir_hierarchy(void)
 {
 	FmResult result = fmr_Ok;
@@ -326,14 +368,32 @@ test_06(void)
 	FmResult result = fmr_Ok;
 
 	do {
-		result = create_dir_hierarchy();
+		result = create_flat_dir_hierarchy();
 		if (result != fmr_Ok) {
 			return result;
 		}
 		
-		ffs_select_by_name(0x3F00);
-		ffs_select_by_name(0x4F00);
-		ffs_select_by_name(0x5F00);
+		if ((result = ffs_select_by_name(0x3F00)) != fmr_Ok) {
+			printf("ERROR: failed to select MF\n");
+			break;
+		}
+		if ((result = ffs_select_by_name(0x4F00)) != fmr_Ok) {
+			printf("ERROR: failed to select 4F00\n");
+			break;
+		}
+		if ((result = ffs_select_by_name(0x5F00)) == fmr_Ok) {
+			printf("ERROR: 5F00 isn't under 4F00, but was selected\n");
+			result = fmr_Err;
+			break;
+		}
+		if ((result = ffs_select_by_name(0x3F00)) != fmr_Ok) {
+			printf("ERROR: failed to select MF\n");
+			break;
+		}
+		if ((result = ffs_select_by_name(0x5F00)) != fmr_Ok) {
+			printf("ERROR: failed to select 5F00\n");
+			break;
+		}
 
 	} while (0);
 
