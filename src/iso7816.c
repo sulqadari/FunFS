@@ -3,11 +3,11 @@
 #include <string.h>
 
 typedef struct {
-	DF_Record     parent_dir;
-	DF_Record     current_dir;
-	DF_Record     current_file;
-	SuperBlock  sblk;
-	uint32_t    sblk_addr;
+	DF_Record  parent_dir;
+	DF_Record  current_dir;
+	DF_Record  current_file;
+	SuperBlock sblk;
+	uint32_t   sblk_addr;
 } ValidityArea;
 
 static ValidityArea va;
@@ -15,8 +15,8 @@ static ValidityArea va;
 static void
 va_set_parent_df(uint16_t fid, uint16_t node)
 {
+	va.parent_dir.fid   = fid;
 	va.parent_dir.iNode = node;
-	va.parent_dir.fid = fid;
 }
 
 static void
@@ -46,14 +46,15 @@ va_set_current_ef(uint16_t fid, uint16_t node)
 		break;                 \
 	}
 
-#define advance(expr) (expr += len)
+#define advance(expr) \
+	(expr += len)
 
 static uint16_t
 get_short(uint8_t* buff)
 {
 	return (((uint16_t)buff[0] << 8) | ((uint16_t)buff[1] & 0xFF));
 }
-
+	
 /** TODO: implement parameters consistency check */
 static emu_Result
 parse_params(INode* inode, uint8_t* data, uint32_t data_len)
