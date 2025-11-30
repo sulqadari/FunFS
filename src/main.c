@@ -1,4 +1,5 @@
-#include "funfs.h"
+#include "iso7816.h"
+#include "flash_emu.h"
 #include <string.h>
 
 uint8_t tempData[] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
@@ -187,10 +188,10 @@ static uint8_t cmd_create_mf[] = {
 static uint8_t
 test_02(void)
 {
-	ffs_initialize();
+	iso_initialize();
 	
 	for (uint32_t i = 0; i < 10; ++i) {
-		ffs_create_file(cmd_create_mf, sizeof(cmd_create_mf));
+		iso_create_file(cmd_create_mf, sizeof(cmd_create_mf));
 	}
 
 	emu_close_flash();
@@ -220,15 +221,15 @@ typedef struct {
 	uint32_t len;
 } cmd_t;
 
-static uint8_t
+static ISO_SW
 create_flat_dir_hierarchy(void)
 {
-	emu_Result result = fmr_Ok;
+	ISO_SW result = SW_UNKNOWN;
 	uint16_t len = 0;
 	cmd_t cmds[5];
 	uint8_t idx = 0;
 	do {
-		if (ffs_initialize()) {
+		if (iso_initialize() != SW_OK) {
 			printf("ERROR: failed to initialize file system\n");
 			break;
 		}
@@ -241,15 +242,13 @@ create_flat_dir_hierarchy(void)
 		cmds[idx++].len = len;
 
 		for (uint8_t i = 0; i < idx; ++i) {
-			if (ffs_create_file(cmds[i].cmd, cmds[i].len)) {
+			if (iso_create_file(cmds[i].cmd, cmds[i].len) != SW_OK) {
 				printf("ERROR: failed cmd No %d\n", i);
-				result = fmr_Err;
 				break;
 			}
 
-			if (ffs_select_by_name(0x3F00)) {
+			if (iso_select_by_name(0x3F00) != SW_OK) {
 				printf("ERROR: failed to select MF\n");
-				result = fmr_Err;
 				break;
 			}
 		}
@@ -258,19 +257,21 @@ create_flat_dir_hierarchy(void)
 			free(cmds[i].cmd);
 			cmds[i].len = 0;
 		}
+
+		result = SW_OK;
 	} while (0);
 	return result;
 }
 
-static uint8_t
+static ISO_SW
 create_dir_hierarchy(void)
 {
-	emu_Result result = fmr_Ok;
+	ISO_SW result = SW_UNKNOWN;
 	uint16_t len = 0;
 	cmd_t cmds[5];
 	uint8_t idx = 0;
 	do {
-		if (ffs_initialize()) {
+		if (iso_initialize() != SW_OK) {
 			printf("ERROR: failed to initialize file system\n");
 			break;
 		}
@@ -283,9 +284,8 @@ create_dir_hierarchy(void)
 		cmds[idx++].len = len;
 
 		for (uint8_t i = 0; i < idx; ++i) {
-			if (ffs_create_file(cmds[i].cmd, cmds[i].len)) {
+			if (iso_create_file(cmds[i].cmd, cmds[i].len) != SW_OK) {
 				printf("ERROR: failed cmd No %d\n", i);
-				result = fmr_Err;
 				break;
 			}
 		}
@@ -294,6 +294,8 @@ create_dir_hierarchy(void)
 			free(cmds[i].cmd);
 			cmds[i].len = 0;
 		}
+
+		result = SW_OK;
 	} while (0);
 	return result;
 }
@@ -309,17 +311,16 @@ test_04(void)
 	return result;
 }
 
-static emu_Result
+static ISO_SW
 test_05(void)
 {
-	emu_Result result = fmr_Ok;
-	result = create_dir_hierarchy();
-
-	if (result != fmr_Ok) {
-		return result;
-	}
-
+	ISO_SW result = SW_UNKNOWN;
+	
 	do {
+		if (create_dir_hierarchy() != SW_OK) {
+			break;
+		}
+
 		uint16_t len = 0;
 		cmd_t cmds[10];
 		uint8_t idx = 0;
@@ -339,12 +340,10 @@ test_05(void)
 		for (uint8_t i = 0; i < idx; ++i) {
 			if (cmds[i].cmd == NULL) {
 				printf("ERROR: cmd No %d is NULL\n", i);
-				result = fmr_Err;
 				break;
 			}
-			if (ffs_select_by_path(cmds[i].cmd, cmds[i].len)) {
+			if (iso_select_by_path(cmds[i].cmd, cmds[i].len)) {
 				printf("ERROR: failed cmd No %d\n", i);
-				result = fmr_Err;
 				break;
 			}
 		}
@@ -353,6 +352,7 @@ test_05(void)
 			free(cmds[i].cmd);
 			cmds[i].len = 0;
 		}
+		result = SW_OK;
 	} while (0);
 	
 	
@@ -363,36 +363,34 @@ test_05(void)
 static emu_Result
 test_06(void)
 {
-	emu_Result result = fmr_Ok;
-
+	ISO_SW result = SW_UNKNOWN;
 	do {
-		result = create_flat_dir_hierarchy();
-		if (result != fmr_Ok) {
-			return result;
+		
+		if (create_flat_dir_hierarchy() != SW_OK) {
+			break;
 		}
 		
-		if ((result = ffs_select_by_name(0x3F00)) != fmr_Ok) {
+		if (iso_select_by_name(0x3F00) != SW_OK) {
 			printf("ERROR: failed to select MF\n");
 			break;
 		}
-		if ((result = ffs_select_by_name(0x4F00)) != fmr_Ok) {
+		if (iso_select_by_name(0x4F00) != SW_OK) {
 			printf("ERROR: failed to select 4F00\n");
 			break;
 		}
-		if ((result = ffs_select_by_name(0x5F00)) == fmr_Ok) {
+		if (iso_select_by_name(0x5F00) == SW_OK) {
 			printf("ERROR: 5F00 isn't under 4F00, but was selected\n");
-			result = fmr_Err;
 			break;
 		}
-		if ((result = ffs_select_by_name(0x3F00)) != fmr_Ok) {
+		if (iso_select_by_name(0x3F00) != SW_OK) {
 			printf("ERROR: failed to select MF\n");
 			break;
 		}
-		if ((result = ffs_select_by_name(0x5F00)) != fmr_Ok) {
+		if (iso_select_by_name(0x5F00) != SW_OK) {
 			printf("ERROR: failed to select 5F00\n");
 			break;
 		}
-
+		result = SW_OK;
 	} while (0);
 
 	emu_close_flash();
@@ -402,12 +400,12 @@ test_06(void)
 static emu_Result
 test_07(void)
 {
-	emu_Result result = fmr_Ok;
+	ISO_SW result = SW_UNKNOWN;
 	uint16_t len = 0;
 	cmd_t cmds[5];
 	uint8_t idx = 0;
 	do {
-		if (ffs_initialize()) {
+		if (iso_initialize() != SW_OK) {
 			printf("ERROR: failed to initialize file system\n");
 			break;
 		}
@@ -420,9 +418,8 @@ test_07(void)
 		cmds[idx++].len = len;
 		
 		for (uint8_t i = 0; i < idx; ++i) {
-			if (ffs_create_file(cmds[i].cmd, cmds[i].len)) {
+			if (iso_create_file(cmds[i].cmd, cmds[i].len) != SW_OK) {
 				printf("ERROR: failed cmd No %d\n", i);
-				result = fmr_Err;
 				break;
 			}
 		}
@@ -431,6 +428,7 @@ test_07(void)
 			free(cmds[i].cmd);
 			cmds[i].len = 0;
 		}
+		result = SW_OK;
 	} while (0);
 
 	emu_close_flash();

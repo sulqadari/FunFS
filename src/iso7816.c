@@ -1,4 +1,4 @@
-#include "funfs.h"
+#include "iso7816.h"
 #include "flash_emu.h"
 #include <string.h>
 
@@ -33,59 +33,6 @@ va_set_current_ef(uint16_t fid, uint16_t node)
 	va.current_file.iNode = node;
 }
 
-emu_Result
-ffs_initialize(void)
-{
-	emu_Result result = fmr_Err;
-	
-	(void)sizeof(DF_Record);
-	(void)sizeof(DF_Payload);
-	(void)sizeof(INode);
-	(void)sizeof(SuperBlock);
-	(void)sizeof(ValidityArea);
-	do {
-		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
-
-		va.sblk_addr = emu_get_start_address() + sizeof(block_t);
-
-		// Open (or create) persistent storage for a flash memory
-		if ((result = emu_open_flash()) != fmr_Ok) {
-			break;
-		}
-		// Read the 'Super Block' and find out has the file system been initialized previously or not
-		if ((result = emu_read(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock))) != fmr_Ok) {
-			break;
-		}
-
-		// IF: the file system is already initialized, then just set the MF as the current folder and bail out.
-		if (va.sblk.magic == 0xCAFEBABE) {
-			va_set_current_df(FID_MASTER_FILE, 0x00);          // Set the MF as the current dir
-			va_set_parent_df(0x00,0x00); // The master file hasn't parent dir.
-			va_set_current_ef(FID_NONE, FID_NONE);             // At startup there is no
-			break;
-		}
-
-		// OTHERWISE: this is the very first run: no MF, no file system, no nothing.
-		if ((va.sblk_addr = emu_allocate(sizeof(SuperBlock))) == 0) { // allocate space for the SuperBlock
-			result = fmr_Err;
-			break;
-		}
-
-		uint32_t size = PAGE_SIZE * 6;	// allocate space for the Inodes table.
-		if ((va.sblk.inodes_start = emu_allocate(size)) == 0) {
-			result = fmr_Err;
-			break;
-		}
-
-		va.sblk.magic           = 0xCAFEBABE;
-		va.sblk.inodes_count    = 0x00;
-		va.sblk.inodes_capacity = size / sizeof(INode);	// 1024 / 64 = 96
-		result = emu_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)); // store the state of SuperBlock
-
-	} while (0);
-
-	return result;
-}
 
 #define assert_eq(curr, expt) \
 	if (curr != expt) {       \
@@ -388,10 +335,66 @@ store_inode(INode* inode)
 	return result;
 }
 
-emu_Result
-ffs_create_file(uint8_t* data, uint32_t data_len)
+ISO_SW
+iso_initialize(void)
 {
-	emu_Result result = fmr_InodeTableFull;
+	ISO_SW result = SW_MEMORY_FAILURE;
+	
+	(void)sizeof(DF_Record);
+	(void)sizeof(DF_Payload);
+	(void)sizeof(INode);
+	(void)sizeof(SuperBlock);
+	(void)sizeof(ValidityArea);
+	do {
+		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
+
+		va.sblk_addr = emu_get_start_address() + sizeof(block_t);
+
+		// Open (or create) persistent storage for a flash memory
+		if (emu_open_flash() != fmr_Ok) {
+			break;
+		}
+		// Read the 'Super Block' and find out has the file system been initialized previously or not
+		if (emu_read(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)) != fmr_Ok) {
+			break;
+		}
+
+		// IF: the file system is already initialized, then just set the MF as the current folder and bail out.
+		if (va.sblk.magic == 0xCAFEBABE) {
+			va_set_current_df(FID_MASTER_FILE, 0x00);          // Set the MF as the current dir
+			va_set_parent_df(0x00,0x00); // The master file hasn't parent dir.
+			va_set_current_ef(FID_NONE, FID_NONE);             // At startup there is no
+			result = SW_OK;
+			break;
+		}
+
+		// OTHERWISE: this is the very first run: no MF, no file system, no nothing.
+		if ((va.sblk_addr = emu_allocate(sizeof(SuperBlock))) == 0) { // allocate space for the SuperBlock
+			break;
+		}
+
+		uint32_t size = PAGE_SIZE * 6;	// allocate space for the Inodes table.
+		if ((va.sblk.inodes_start = emu_allocate(size)) == 0) {
+			break;
+		}
+
+		va.sblk.magic           = 0xCAFEBABE;
+		va.sblk.inodes_count    = 0x00;
+		va.sblk.inodes_capacity = size / sizeof(INode);	// 1024 / 64 = 96
+		if (emu_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)) != fmr_Ok) { // store the state of SuperBlock
+			break;
+		}
+
+		result = SW_OK;
+	} while (0);
+
+	return result;
+}
+
+ISO_SW
+iso_create_file(uint8_t* data, uint32_t data_len)
+{
+	ISO_SW result = SW_UNKNOWN;
 	INode inode;
 
 	do {
@@ -401,23 +404,25 @@ ffs_create_file(uint8_t* data, uint32_t data_len)
 		}
 
 		memset((uint8_t*)&inode, 0x00, sizeof(INode));
-		if ((result = parse_params(&inode, data, data_len)) != fmr_Ok)
+		if (parse_params(&inode, data, data_len) != fmr_Ok) {
 			break;
+		}
+		if (allocate_data_block(&inode) != fmr_Ok) {
+			break;
+		}
+		if (store_inode(&inode) != fmr_Ok) {
+			break;
+		}
 
-		if ((result = allocate_data_block(&inode)) != fmr_Ok)
-			break;
-		
-		if ((result = store_inode(&inode)) != fmr_Ok)
-			break;
-
+		result = SW_OK;
 	} while (0);
 	return result;
 }
 
-emu_Result
-ffs_select_by_name(const uint16_t fid)
+ISO_SW
+iso_select_by_name(const uint16_t fid)
 {
-	emu_Result result = fmr_Err;
+	ISO_SW result = SW_UNKNOWN;
 
 	uint16_t idx       = va.current_dir.iNode;
 	INode* inode_array = (INode*)va.sblk.inodes_start;
@@ -426,7 +431,7 @@ ffs_select_by_name(const uint16_t fid)
 	do {
 		// special case: MF always present and is always accessible
 		if (fid == FID_MASTER_FILE) {
-			result = fmr_Ok;
+			result = SW_OK;
 			va_set_current_df(FID_MASTER_FILE, 0x00);
 			va_set_parent_df(0x00, 0x00);
 			va_set_current_ef(FID_NONE, FID_NONE);
@@ -435,7 +440,7 @@ ffs_select_by_name(const uint16_t fid)
 
 		uint32_t count = 0;
 		// get the 'count' of files in current folder.
-		if ((result = emu_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+		if (emu_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t)) != fmr_Ok) {
 			break;
 		}
 
@@ -443,7 +448,7 @@ ffs_select_by_name(const uint16_t fid)
 		uint32_t i;
 		for (i = 0; i < count; ++i) {
 			// read from current DF's payload region an info about subsequent child. 
-			if ((result = emu_read((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record))) != fmr_Ok) {
+			if (emu_read((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != fmr_Ok) {
 				break;
 			}
 
@@ -468,18 +473,18 @@ ffs_select_by_name(const uint16_t fid)
 		}
 
 		if (i >= count) {
-			result = fmr_Err;
+			break;
 		}
-
+		result = SW_OK;
 	} while (0);
 
 	return result;
 }
 
-emu_Result
-ffs_select_by_path(uint8_t* data, uint32_t data_len)
+ISO_SW
+iso_select_by_path(uint8_t* data, uint32_t data_len)
 {
-	emu_Result result = fmr_Err;
+	ISO_SW result = SW_UNKNOWN;
 #if (0)
 	uint8_t* ptr    = data;
 

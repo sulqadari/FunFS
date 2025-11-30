@@ -1,7 +1,7 @@
 add_executable(${FUNFS_EXEC}
 	main.c	
 	flash_emu.c
-	funfs.c
+	iso7816.c
 )
 
 target_include_directories(${FUNFS_EXEC}

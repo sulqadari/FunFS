@@ -2,11 +2,6 @@
 #define FUNFS_FILESYSTEM_H
 
 #include <stdint.h>
-#include "flash_emu.h"
-
-// allocate PERSENT percents for Inodes
-#define PERSENT 10
-#define INODES_TOTAL (((FLASH_SIZE_TOTAL * PERSENT) / 100) / sizeof(INode))
 
 #define FID_NONE          0xFFFF
 #define FID_MASTER_FILE   0x3F00
@@ -19,6 +14,25 @@ typedef enum {
 	ft_LF = 0x0C, // Linear Fixed file
 	ft_DF = 0x38, // Dedicated file
 } FileType;
+
+typedef enum {
+	SW_OK                            = 0x9000,
+	SW_SELECTED_FILE_DEACTIVATED     = 0x6283,
+	SW_MEMORY_FAILURE                = 0x6581,
+	SW_SECURITY_STATUS_NOT_SATISFIED = 0x6982,
+	SW_INCORRECT_PARAMS_IN_CDATA     = 0x6A80,
+	SW_FUNCTION_NOT_SUPPORTED        = 0x6A81,
+	SW_FILE_NOT_FOUND                = 0x6A82,
+	SW_NOT_ENOUGH_MEMORY_IN_FILE     = 0x6A84,
+	SW_INCORRECT_P1P2                = 0x6A86,
+	SW_Nc_INCONSISTENT_WITH_P1P2     = 0x6A87,
+	SW_DATA_NOT_FOUND                = 0x6A88,
+	SW_FILE_ALREADY_EXISTS           = 0x6A89,
+	SW_DF_NAME_ALREADY_EXISTS        = 0x6A8A,
+	SW_INS_NOT_SUPPORTED             = 0x6D00,
+	SW_CLA_NOT_SUPPORTED             = 0x6E00,
+	SW_UNKNOWN                       = 0x6F00
+} ISO_SW;
 
 /** Keeps information about each file on the file system */
 typedef struct {
@@ -55,10 +69,10 @@ typedef struct {
 	DF_Record entries[256 / sizeof(DF_Record) - 1];
 } DF_Payload;
 
-emu_Result ffs_initialize(void);
+ISO_SW iso_initialize(void);
 
-emu_Result ffs_create_file(uint8_t*    data, uint32_t data_len);
-emu_Result ffs_select_by_path(uint8_t* data, uint32_t data_len);
-emu_Result ffs_select_by_name(const uint16_t fid);
+ISO_SW iso_create_file(uint8_t*    data, uint32_t data_len);
+ISO_SW iso_select_by_path(uint8_t* data, uint32_t data_len);
+ISO_SW iso_select_by_name(const uint16_t fid);
 
 #endif /* FUNFS_FILESYSTEM_H */
