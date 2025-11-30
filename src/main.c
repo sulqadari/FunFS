@@ -221,13 +221,12 @@ typedef struct {
 } cmd_t;
 
 static uint8_t
-test_04(void)
+create_dir_hierarchy(void)
 {
 	FmResult result = fmr_Ok;
 	uint16_t len = 0;
 	cmd_t cmds[5];
 	uint8_t idx = 0;
-
 	do {
 		if (ffs_initialize()) {
 			printf("ERROR: failed to initialize file system\n");
@@ -236,11 +235,8 @@ test_04(void)
 
 		cmds[idx].cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
 		cmds[idx++].len = len;
-		// cmds[idx++] = hex_to_bytes("6217 8302 0101 8202 0101 8002 00FF 8A01 01 8C06 6BFFFFFF1111", &len);
 		cmds[idx].cmd = hex_to_bytes("6236 8302 4F00 8201 38 8407 A0000002471001 8D02 4003 8A01 01 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
 		cmds[idx++].len = len;
-		// cmds[idx++] = hex_to_bytes("6217 8302 0101 8202 0101 8002 0020 8A01 01 8C06 6BFFFFFF1111", &len);
-		// cmds[idx++] = hex_to_bytes("6217 8302 0102 8202 0101 8002 0020 8A01 01 8C06 6BFFFFFF1212", &len);
 		cmds[idx].cmd = hex_to_bytes("6236 8302 5F00 8201 38 8407 A0000002471001 8D02 4003 8A01 01 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
 		cmds[idx++].len = len;
 
@@ -252,13 +248,21 @@ test_04(void)
 			}
 		}
 		
+		for (uint8_t i = 0; i < idx; ++i) {
+			free(cmds[i].cmd);
+			cmds[i].len = 0;
+		}
 	} while (0);
+	return result;
+}
 
-	for (uint8_t i = 0; i < idx; ++i) {
-		free(cmds[i].cmd);
-		cmds[i].len = 0;
-	}
-	
+static uint8_t
+test_04(void)
+{
+	FmResult result = fmr_Ok;
+
+	result = create_dir_hierarchy();
+
 	femu_close_flash();
 	return result;
 }
@@ -267,43 +271,17 @@ static uint8_t
 test_05(void)
 {
 	FmResult result = fmr_Ok;
-	uint16_t len = 0;
-	cmd_t cmds[10];
-	uint8_t idx = 0;
-
-	do {
-		if (ffs_initialize()) {
-			printf("ERROR: failed to initialize file system\n");
-			break;
-		}
-
-		cmds[idx].cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
-		cmds[idx++].len = len;
-		cmds[idx].cmd = hex_to_bytes("6236 8302 4F00 8201 38 8407 A0000002471001 8D02 4003 8A01 01 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
-		cmds[idx++].len = len;
-		cmds[idx].cmd = hex_to_bytes("6236 8302 5F00 8201 38 8407 A0000002471001 8D02 4003 8A01 01 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
-		cmds[idx++].len = len;
-
-		for (uint8_t i = 0; i < idx; ++i) {
-			if (ffs_create_file(cmds[i].cmd, cmds[i].len)) {
-				printf("ERROR: failed cmd No %d\n", i);
-				result = fmr_Err;
-				break;
-			}
-		}
-
-		for (uint8_t i = 0; i < idx; ++i) {
-			free(cmds[i].cmd);
-			cmds[i].len = 0;
-		}
-	} while (0);
+	result = create_dir_hierarchy();
 
 	if (result != fmr_Ok) {
 		return result;
 	}
 
 	do {
-		idx = 0;
+		uint16_t len = 0;
+		cmd_t cmds[10];
+		uint8_t idx = 0;
+		
 		cmds[idx].cmd = hex_to_bytes("3F00 4F00 5F00", &len);
 		cmds[idx++].len = len;
 
@@ -322,19 +300,43 @@ test_05(void)
 				result = fmr_Err;
 				break;
 			}
-			if (ffs_select_file(cmds[i].cmd, cmds[i].len)) {
+			if (ffs_select_by_path(cmds[i].cmd, cmds[i].len)) {
 				printf("ERROR: failed cmd No %d\n", i);
 				result = fmr_Err;
 				break;
 			}
 		}
+
+		for (uint8_t i = 0; i < idx; ++i) {
+			free(cmds[i].cmd);
+			cmds[i].len = 0;
+		}
 	} while (0);
 	
-	for (uint8_t i = 0; i < idx; ++i) {
-		free(cmds[i].cmd);
-		cmds[i].len = 0;
-	}
 	
+	femu_close_flash();
+	return result;
+}
+
+#define assert(expr)
+
+static uint8_t
+test_06(void)
+{
+	FmResult result = fmr_Ok;
+
+	do {
+		result = create_dir_hierarchy();
+		if (result != fmr_Ok) {
+			return result;
+		}
+		
+		ffs_select_by_name(0x3F00);
+		ffs_select_by_name(0x4F00);
+		ffs_select_by_name(0x5F00);
+
+	} while (0);
+
 	femu_close_flash();
 	return result;
 }
@@ -342,5 +344,5 @@ test_05(void)
 int
 main(int argc, char* argv[])
 {
-	return test_05();
+	return test_06();
 }

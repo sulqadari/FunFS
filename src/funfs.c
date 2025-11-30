@@ -12,6 +12,32 @@ typedef struct {
 
 static ValidityArea va;
 
+/** pointer to the beginning of DfPayload field. */
+#define df_data(expr) (uint32_t)&((DfPayload*)expr->data)
+/** pointer to the DfPayload::entries array */
+#define df_entries(expr) ((DfPayload*)expr->data)->entries
+
+static void
+va_set_parent_df(uint16_t fid, uint16_t node)
+{
+	va.parent_dir.iNode = node;
+	va.parent_dir.fid = fid;
+}
+
+static void
+va_set_current_df(uint16_t fid, uint16_t node)
+{
+	va.current_dir.fid   = fid;
+	va.current_dir.iNode = node;
+}
+
+static void
+va_set_current_ef(uint16_t fid, uint16_t node)
+{
+	va.current_file.fid   = fid;
+	va.current_file.iNode = node;
+}
+
 FmResult
 ffs_initialize(void)
 {
@@ -38,29 +64,19 @@ ffs_initialize(void)
 
 		// IF: the file system is already initialized, then just set the MF as the current folder and bail out.
 		if (va.sblk.magic == 0xCAFEBABE) {
-			// The master file hasn't parent dir.
-			va.parent_dir.fid   = 0x00;
-			va.parent_dir.iNode = 0x00;
-
-			// set the MF as the current dir
-			va.current_dir.fid   = FID_MASTER_FILE;
-			va.current_dir.iNode = 0x00; // Master file has zeroth index in iNode table
-			
-			// At startup there is no
-			va.current_file.fid   = FID_NONE;
-			va.current_file.iNode = FID_NONE;
+			va_set_current_df(FID_MASTER_FILE, 0x00);          // Set the MF as the current dir
+			va_set_parent_df(0x00,0x00); // The master file hasn't parent dir.
+			va_set_current_ef(FID_NONE, FID_NONE);             // At startup there is no
 			break;
 		}
 
 		// OTHERWISE: this is the very first run: no MF, no file system, no nothing.
-		// allocate space on the flash for the SuperBlock
-		if ((va.sblk_addr = femu_allocate(sizeof(SuperBlock))) == 0) {
+		if ((va.sblk_addr = femu_allocate(sizeof(SuperBlock))) == 0) { // allocate space for the SuperBlock
 			result = fmr_Err;
 			break;
 		}
 
-		// allocate  space on the flash for the Inodes table.
-		uint32_t size = PAGE_SIZE * 6;
+		uint32_t size = PAGE_SIZE * 6;	// allocate space for the Inodes table.
 		if ((va.sblk.inodes_start = femu_allocate(size)) == 0) {
 			result = fmr_Err;
 			break;
@@ -68,10 +84,8 @@ ffs_initialize(void)
 
 		va.sblk.magic           = 0xCAFEBABE;
 		va.sblk.inodes_count    = 0x00;
-		va.sblk.inodes_capacity = size / sizeof(Inode);	// if page size equals 1024, then the length
-														// of this array is 96 elements
-		// store the state of SuperBlock
-		result = femu_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock));
+		va.sblk.inodes_capacity = size / sizeof(Inode);	// 1024 / 64 = 96
+		result = femu_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)); // store the state of SuperBlock
 
 	} while (0);
 
@@ -91,11 +105,6 @@ ffs_initialize(void)
 	}
 
 #define advance(expr) (expr += len)
-
-/** pointer to the beginning of DfPayload field. */
-#define df_counter(expr) (uint32_t)&((DfPayload*)expr->data)
-/** pointer to the DfPayload::entries array */
-#define df_entries(expr) ((DfPayload*)expr->data)->entries
 
 static uint16_t
 get_short(uint8_t* buff)
@@ -205,7 +214,7 @@ add_record_to_parent(Inode* current)
 		uint32_t count = 0;
 		
 		// get the 'count' of parent folder. It will be used as an index into 'entries' array
-		if ((result = femu_read(df_counter(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+		if ((result = femu_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
 			break;
 		}
 		
@@ -215,7 +224,7 @@ add_record_to_parent(Inode* current)
 		}
 		
 		// update the 'count'
-		if ((result = femu_write(df_counter(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+		if ((result = femu_write(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
 			break;
 		}
 
@@ -257,48 +266,51 @@ update_parent_size(Inode* current)
 }
 
 static FmResult
-data_block_for_df(Inode* current)
+data_block_for_df(Inode* new_df_node)
 {
 	FmResult result = fmr_Ok;
 
 	do {
-		// The MF must be the first one and the only in the file system.
-		if ((va.sblk.inodes_count != 0x00) && (current->fid == FID_MASTER_FILE)) {
+		// Assigning 3F00 to some another file is forbidden.
+		if ((va.sblk.inodes_count != 0x00) && (new_df_node->fid == FID_MASTER_FILE)) {
+			result = fmr_Err;
+			break;
+		}
+
+		// the first file must be of type MF.
+		if ((va.sblk.inodes_count == 0x00) && (new_df_node->fid != FID_MASTER_FILE)) {
 			result = fmr_Err;
 			break;
 		}
 
 		// The size of DF is always 256 bytes.
-		current->size = sizeof(DfPayload);
+		new_df_node->size = sizeof(DfPayload);
 		// allocate a data block for the newly created DF
-		if ((current->data = femu_allocate(current->size)) == 0x00) {
+		if ((new_df_node->data = femu_allocate(new_df_node->size)) == 0x00) {
 			result = fmr_writeErr;
 			break;
 		}
 
-		// the current dir now becomes 'parent' of the newly created one.
-		va.parent_dir.fid   = va.current_dir.fid;
-		va.parent_dir.iNode = va.current_dir.iNode;
-
-		// the newly created folder becomes the current one.
-		va.current_dir.fid   = current->fid;
-		va.current_dir.iNode = va.sblk.inodes_count;
+		// MIND THE SEQUENCE! firstable update the parent, and only after current.
+		va_set_parent_df(va.current_dir.fid, va.current_dir.iNode); // Current dir becomes 'parent'
+		va_set_current_df(new_df_node->fid, va.sblk.inodes_count);  // New one becomes 'current'
 		
+		// In each newly created dir, the first two records goes for itself and its parent
 		uint32_t count = 0;
-		femu_write((uint32_t)&df_entries(current)[count++], (uint8_t*)&va.current_dir, sizeof(DfEntry));
-		femu_write((uint32_t)&df_entries(current)[count++], (uint8_t*)&va.parent_dir,  sizeof(DfEntry));
-		femu_write(df_counter(current)->count, (uint8_t*)&count,  sizeof(uint32_t));
+		femu_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.current_dir, sizeof(DfEntry));
+		femu_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.parent_dir,  sizeof(DfEntry));
+		femu_write(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
 		
-		// the MF is the first element in the file system. There is nothing to do.
-		if (current->fid == FID_MASTER_FILE) {
+		// If this DF is the MF, then there is no parent dir at all. Bail out.
+		if (new_df_node->fid == FID_MASTER_FILE) {
 			break;
 		}
-
-		if ((result = add_record_to_parent(current)) != fmr_Ok) {
+		// Otherwise, update DfEntry array of its parent
+		if ((result = add_record_to_parent(new_df_node)) != fmr_Ok) {
 			break;
 		}
-
-		if ((result = update_parent_size(current)) != fmr_Ok) {
+		// and update the 'size' field of its parent dirs.
+		if ((result = update_parent_size(new_df_node)) != fmr_Ok) {
 			break;
 		}
 
@@ -374,7 +386,7 @@ ffs_create_file(uint8_t* data, uint32_t data_len)
 			break;
 		}
 
-		memset((uint8_t*)&inode,0x00, sizeof(Inode));
+		memset((uint8_t*)&inode, 0x00, sizeof(Inode));
 		if ((result = parse_params(&inode, data, data_len)) != fmr_Ok)
 			break;
 
@@ -388,8 +400,9 @@ ffs_create_file(uint8_t* data, uint32_t data_len)
 	return result;
 }
 
+
 FmResult
-ffs_select_file(uint8_t* data, uint32_t data_len)
+ffs_select_by_path(uint8_t* data, uint32_t data_len)
 {
 	FmResult result = fmr_Err;
 	uint8_t* ptr    = data;
@@ -397,23 +410,77 @@ ffs_select_file(uint8_t* data, uint32_t data_len)
 	uint16_t idx       = va.current_dir.iNode;
 	Inode* inode_array = (Inode*)va.sblk.inodes_start;
 	Inode* currentDf   = (Inode*)&inode_array[idx];
-
-	DfEntry toBeSelected;
-	uint32_t count = 0;
+	DfEntry nextFile;
+	uint16_t fid;
 
 	// This machinery expects that the data length is multiple of 'uint16_t'.
+	uint32_t count = 0;
 	do {
-		toBeSelected.fid = get_short(ptr);
+		fid = get_short(ptr);
+		(void)fid;
+		do {
+			// get the 'count' of files in current folder.
+			if ((result = femu_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+				break;
+			}
 
-		// special case: MF is always at idx '0x00' and must be selected immediately.
-
+			// read a record of the next child
+			if ((result = femu_read((uint32_t)&df_entries(currentDf)[count], (uint8_t*)&nextFile, sizeof(DfEntry))) != fmr_Ok) {
+				break;
+			}
+		} while (0);
+		
+		
 		ptr += 2;
 	} while (data_len -= 2);
 
-	va.current_dir.fid   = toBeSelected.fid;
-	va.current_dir.iNode = toBeSelected.iNode;
-	va.parent_dir.fid    = 0x00;
-	va.parent_dir.iNode  = 0x00;
+	return result;
+}
+
+FmResult
+ffs_select_by_name(const uint16_t fid)
+{
+	FmResult result = fmr_Err;
+
+	uint16_t idx       = va.current_dir.iNode;
+	Inode* inode_array = (Inode*)va.sblk.inodes_start;
+	Inode* currentDf   = (Inode*)&inode_array[idx];
+
+	do {
+		// special case: MF always present and is always accessible
+		if (fid == FID_MASTER_FILE) {
+			result = fmr_Ok;
+			va_set_current_df(FID_MASTER_FILE, 0x00);
+			va_set_parent_df(0x00, 0x00);
+			va_set_current_ef(FID_NONE, FID_NONE);
+			break;
+		}
+
+		uint32_t count = 0;
+		// get the 'count' of files in current folder.
+		if ((result = femu_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+			break;
+		}
+
+		DfEntry next;
+		for (uint32_t i = 0; i < count; ++i) {
+			// read a record of the next child
+			if ((result = femu_read((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DfEntry))) != fmr_Ok) {
+				break;
+			}
+
+			if (fid == next.fid) {
+				currentDf   = (Inode*)&inode_array[next.iNode];
+				uint16_t parent_idx = df_entries(currentDf)[1].iNode;
+				uint16_t parent_fid = df_entries(currentDf)[1].fid;
+				
+				va_set_parent_df(parent_fid, parent_idx); // Current dir becomes 'parent'
+				va_set_current_df(next.fid, next.iNode);  // New one becomes 'current'
+				break;
+			}
+		}
+
+	} while (0);
 
 	return result;
 }
