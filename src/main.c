@@ -315,7 +315,7 @@ static ISO_SW
 test_05(void)
 {
 	ISO_SW result = SW_UNKNOWN;
-	
+	printf("TEST 05\n");
 	do {
 		if (create_dir_hierarchy() != SW_OK) {
 			break;
@@ -342,7 +342,7 @@ test_05(void)
 				printf("ERROR: cmd No %d is NULL\n", i);
 				break;
 			}
-			if (iso_select_by_path(cmds[i].cmd, cmds[i].len)) {
+			if (iso_select_by_path(cmds[i].cmd, cmds[i].len) != SW_OK) {
 				printf("ERROR: failed cmd No %d\n", i);
 				break;
 			}
@@ -364,6 +364,7 @@ static emu_Result
 test_06(void)
 {
 	ISO_SW result = SW_UNKNOWN;
+	printf("TEST 06\n");
 	do {
 		
 		if (create_flat_dir_hierarchy() != SW_OK) {
@@ -404,6 +405,8 @@ test_07(void)
 	uint16_t len = 0;
 	cmd_t cmds[5];
 	uint8_t idx = 0;
+
+	printf("TEST 07\n");
 	do {
 		if (iso_initialize() != SW_OK) {
 			printf("ERROR: failed to initialize file system\n");

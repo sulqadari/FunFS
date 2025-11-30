@@ -469,11 +469,13 @@ iso_select_by_name(const uint16_t fid)
 
 				va_set_parent_df(parent_fid, parent_idx); // Current dir becomes 'parent'
 				va_set_current_df(next.fid, next.iNode);  // the one we're looking for becomes 'current'
+				va_set_current_ef(FID_NONE, FID_NONE);
 				break;
 			}
 		}
 
 		if (i >= count) {
+			result = SW_FILE_NOT_FOUND;
 			break;
 		}
 		result = SW_OK;
@@ -486,26 +488,16 @@ ISO_SW
 iso_select_by_path(uint8_t* data, uint32_t data_len)
 {
 	ISO_SW result = SW_UNKNOWN;
-#if (0)
-	uint8_t* ptr    = data;
-
-	uint16_t idx       = va.current_dir.iNode;
-	INode* inode_array = (INode*)va.sblk.inodes_start;
-	INode* currentDf   = (INode*)&inode_array[idx];
-	DF_Record nextFile;
+	uint8_t* ptr = data;
 	uint16_t fid;
 
-	// This machinery expects that the data length is multiple of 'uint16_t'.
-	uint32_t count = 0;
 	do {
 		fid = get_short(ptr);
-		(void)fid;
-		
-		// TODO
-		
+		if ((result = iso_select_by_name(fid)) != SW_OK)
+			break; 
+
 		ptr += 2;
 	} while (data_len -= 2);
-#endif /* 0 */
 
 	return result;
 }
