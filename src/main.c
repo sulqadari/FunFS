@@ -134,35 +134,35 @@ hex_to_bytes(const char* str, uint16_t* outLen)
 static uint8_t
 test_01(void)
 {
-	femu_open_flash();
+	emu_open_flash();
 
 	printf("INode size: %d\n", sizeof(Inode));
 	for (uint32_t i = 0; i < FLASH_SIZE_TOTAL; i += sizeof(tempAnsr)) {
-		if(femu_read(i, tempAnsr, sizeof(tempAnsr)) != fmr_Ok) {
+		if(emu_read(i, tempAnsr, sizeof(tempAnsr)) != fmr_Ok) {
 			fprintf(stderr, "EFFOR: failed to read from index %d\n", i);
 			return 1;
 		}
 		print_hex(tempAnsr, sizeof(tempAnsr));
 	}
 
-	if (femu_read(FLASH_SIZE_TOTAL - 3, tempAnsr, sizeof(tempAnsr)) == fmr_Ok) {
+	if (emu_read(FLASH_SIZE_TOTAL - 3, tempAnsr, sizeof(tempAnsr)) == fmr_Ok) {
 		fprintf(stderr, "ERROR: failure expected because of boundary violation.\n");
 		return 1;
 	}
 
 	for (uint32_t i = 0; i < FLASH_SIZE_TOTAL; i += sizeof(tempData)) {
-		if(femu_write(i, tempData, sizeof(tempData)) != fmr_Ok) {
+		if(emu_write(i, tempData, sizeof(tempData)) != fmr_Ok) {
 			fprintf(stderr, "EFFOR: failed to write at index %d\n", i);
 			return 1;
 		}
 	}
 
-	if (femu_write(FLASH_SIZE_TOTAL - 3, tempData, sizeof(tempData)) == fmr_Ok) {
+	if (emu_write(FLASH_SIZE_TOTAL - 3, tempData, sizeof(tempData)) == fmr_Ok) {
 		fprintf(stderr, "EFFOR: Error expected.\n");
 		return 1;
 	}
 
-	femu_close_flash();
+	emu_close_flash();
 	return 0;
 }
 
@@ -193,7 +193,7 @@ test_02(void)
 		ffs_create_file(cmd_create_mf, sizeof(cmd_create_mf));
 	}
 
-	femu_close_flash();
+	emu_close_flash();
 	return 0;
 }
 
@@ -223,7 +223,7 @@ typedef struct {
 static uint8_t
 create_flat_dir_hierarchy(void)
 {
-	FmResult result = fmr_Ok;
+	emu_Result result = fmr_Ok;
 	uint16_t len = 0;
 	cmd_t cmds[5];
 	uint8_t idx = 0;
@@ -265,7 +265,7 @@ create_flat_dir_hierarchy(void)
 static uint8_t
 create_dir_hierarchy(void)
 {
-	FmResult result = fmr_Ok;
+	emu_Result result = fmr_Ok;
 	uint16_t len = 0;
 	cmd_t cmds[5];
 	uint8_t idx = 0;
@@ -298,21 +298,21 @@ create_dir_hierarchy(void)
 	return result;
 }
 
-static FmResult
+static emu_Result
 test_04(void)
 {
-	FmResult result = fmr_Ok;
+	emu_Result result = fmr_Ok;
 
 	result = create_dir_hierarchy();
 
-	femu_close_flash();
+	emu_close_flash();
 	return result;
 }
 
-static FmResult
+static emu_Result
 test_05(void)
 {
-	FmResult result = fmr_Ok;
+	emu_Result result = fmr_Ok;
 	result = create_dir_hierarchy();
 
 	if (result != fmr_Ok) {
@@ -356,14 +356,14 @@ test_05(void)
 	} while (0);
 	
 	
-	femu_close_flash();
+	emu_close_flash();
 	return result;
 }
 
-static FmResult
+static emu_Result
 test_06(void)
 {
-	FmResult result = fmr_Ok;
+	emu_Result result = fmr_Ok;
 
 	do {
 		result = create_flat_dir_hierarchy();
@@ -395,14 +395,14 @@ test_06(void)
 
 	} while (0);
 
-	femu_close_flash();
+	emu_close_flash();
 	return result;
 }
 
-static FmResult
+static emu_Result
 test_07(void)
 {
-	FmResult result = fmr_Ok;
+	emu_Result result = fmr_Ok;
 	uint16_t len = 0;
 	cmd_t cmds[5];
 	uint8_t idx = 0;
@@ -433,7 +433,7 @@ test_07(void)
 		}
 	} while (0);
 
-	femu_close_flash();
+	emu_close_flash();
 	return result;
 }
 
@@ -441,7 +441,7 @@ int
 main(int argc, char* argv[])
 {
 	// test_04();
-	// test_05();
+	test_05();
 	test_06();
 	test_07();
 

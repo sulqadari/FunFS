@@ -19,7 +19,7 @@ typedef enum {
 	fmr_fopenErr,
 	fmr_InodeTableFull,
 	fmr_Err
-} FmResult;
+} emu_Result;
 
 /** Flash Memory block */
 typedef struct {
@@ -27,15 +27,15 @@ typedef struct {
 	uint32_t prev;
 } block_t;
 
-uint32_t femu_get_start_address(void);
+uint32_t emu_get_start_address(void);
 
-uint32_t femu_allocate(uint16_t size);
-// FmResult femu_deallocate(uint32_t offset);
-// FmResult femu_defragmentate(void);
-FmResult femu_write(uint32_t offset, uint8_t* data, uint16_t data_len);
-FmResult femu_read(uint32_t offset, uint8_t* data, uint16_t data_len);
+uint32_t emu_allocate(uint16_t size);
+// emu_Result emu_deallocate(uint32_t offset);
+// emu_Result emu_defragmentate(void);
+emu_Result emu_write(uint32_t offset, uint8_t* data, uint16_t data_len);
+emu_Result emu_read(uint32_t offset, uint8_t* data, uint16_t data_len);
 
-FmResult femu_open_flash(void);
-FmResult femu_close_flash(void);
+emu_Result emu_open_flash(void);
+emu_Result emu_close_flash(void);
 
 #endif /* FUNFS_FLASH_EMU_H */

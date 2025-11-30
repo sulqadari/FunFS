@@ -9,7 +9,7 @@ static uint32_t fs_start_addr = 0x00;
 static uint32_t fs_upper_addr = 0x00;
 
 static void
-femu_set_bounds(void)
+emu_set_bounds(void)
 {
 	(void)sizeof(flash_emu);
 	fs_start_addr = (uint32_t)&flash_emu;
@@ -17,9 +17,9 @@ femu_set_bounds(void)
 }
 
 uint32_t
-femu_get_start_address(void)
+emu_get_start_address(void)
 {
-	femu_set_bounds();
+	emu_set_bounds();
 	return fs_start_addr;
 }
 
@@ -30,7 +30,7 @@ femu_get_start_address(void)
 #endif
 
 uint32_t
-femu_allocate(uint16_t size)
+emu_allocate(uint16_t size)
 {
 	size = WORD_ALIGNED(size);
 	block_t* current = (block_t*)flash_emu;
@@ -62,8 +62,8 @@ femu_allocate(uint16_t size)
 	return address;
 }
 
-FmResult
-femu_write(uint32_t offset, uint8_t* data, uint16_t data_len)
+emu_Result
+emu_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
 	if (offset + data_len > fs_upper_addr) {
 		return fmr_writeErr;
@@ -75,8 +75,8 @@ femu_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 	return fmr_Ok;
 }
 
-FmResult
-femu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
+emu_Result
+emu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
 	if (offset + data_len > fs_upper_addr) {
 		return fmr_readErr;
@@ -92,11 +92,11 @@ femu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
  * Creates an 64 Kbyte flash memory simulation space.
  * If file already exists, it will be reused.
  */
-FmResult
-femu_open_flash(void)
+emu_Result
+emu_open_flash(void)
 {
 	// size_t bytesRead = 0;
-	FmResult result = fmr_Ok;
+	emu_Result result = fmr_Ok;
 
 	do {
 		if (aFile != NULL) { // the 'FunFS.bin' is already openned. Bail out.
@@ -116,10 +116,10 @@ femu_open_flash(void)
 	return result;
 }
 
-static FmResult
+static emu_Result
 update_flash(void)
 {
-	FmResult result = fmr_Ok;
+	emu_Result result = fmr_Ok;
 
 	do {
 		if (aFile == NULL) {
@@ -143,10 +143,10 @@ update_flash(void)
 	return result;
 }
 
-FmResult
-femu_close_flash(void)
+emu_Result
+emu_close_flash(void)
 {
-	FmResult result = fmr_Ok;
+	emu_Result result = fmr_Ok;
 
 	if (aFile != NULL) {
 		result = update_flash();

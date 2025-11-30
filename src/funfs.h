@@ -55,10 +55,10 @@ typedef struct {
 	DfEntry entries[256 / sizeof(DfEntry) - 1];
 } DfPayload;
 
-FmResult ffs_initialize(void);
+emu_Result ffs_initialize(void);
 
-FmResult ffs_create_file(uint8_t*    data, uint32_t data_len);
-FmResult ffs_select_by_path(uint8_t* data, uint32_t data_len);
-FmResult ffs_select_by_name(const uint16_t fid);
+emu_Result ffs_create_file(uint8_t*    data, uint32_t data_len);
+emu_Result ffs_select_by_path(uint8_t* data, uint32_t data_len);
+emu_Result ffs_select_by_name(const uint16_t fid);
 
 #endif /* FUNFS_FILESYSTEM_H */
