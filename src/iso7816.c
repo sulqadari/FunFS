@@ -222,12 +222,6 @@ data_block_for_df(INode* new_df_node)
 			break;
 		}
 
-		// the first file must be of type MF.
-		if ((va.sblk.inodes_count == 0x00) && (new_df_node->fid != FID_MASTER_FILE)) {
-			result = fmr_Err;
-			break;
-		}
-
 		// The size of DF is always 256 bytes.
 		new_df_node->size = sizeof(DF_Payload);
 		// allocate a data block for the newly created DF
@@ -245,20 +239,6 @@ data_block_for_df(INode* new_df_node)
 		emu_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.current_dir, sizeof(DF_Record));
 		emu_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.parent_dir,  sizeof(DF_Record));
 		emu_write(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
-		
-		// If this DF is the MF, then there is no parent dir at all. Bail out.
-		if (new_df_node->fid == FID_MASTER_FILE) {
-			break;
-		}
-		// Otherwise, update DF_Record array of its parent
-		if ((result = add_record_to_parent(new_df_node)) != fmr_Ok) {
-			break;
-		}
-		// and update the 'size' field of its parent dirs.
-		if ((result = update_parent_size(new_df_node)) != fmr_Ok) {
-			break;
-		}
-
 	} while (0);
 
 	return result;
@@ -268,7 +248,6 @@ static emu_Result
 data_block_for_ef(INode* new_ef_node)
 {
 	emu_Result result = fmr_Ok;
-
 	do {
 		
 		// allocate a data block for the newly created DF
@@ -276,18 +255,7 @@ data_block_for_ef(INode* new_ef_node)
 			result = fmr_writeErr;
 			break;
 		}
-
 		va_set_current_ef(new_ef_node->fid, va.sblk.inodes_count);
-
-		// update DF_Record array of its parent
-		if ((result = add_record_to_parent(new_ef_node)) != fmr_Ok) {
-			break;
-		}
-		// and update the 'size' field of its parent dirs.
-		if ((result = update_parent_size(new_ef_node)) != fmr_Ok) {
-			break;
-		}
-
 	} while (0);
 
 	return result;
@@ -296,19 +264,36 @@ data_block_for_ef(INode* new_ef_node)
 static emu_Result
 allocate_data_block(INode* inode)
 {
-	emu_Result result = fmr_Ok;
+	emu_Result result = fmr_Err;
 	FileType type = inode->desc[0];
 	
 	do {
+		// the first file must be of type MF.
+		if ((va.sblk.inodes_count == 0x00) && (inode->fid != FID_MASTER_FILE)) {
+			break;
+		}
 		if (type == ft_DF) {
 			result = data_block_for_df(inode);
 		} else if (type == ft_EF) {
 			result = data_block_for_ef(inode);
 		} else {
-			result = fmr_Err;
+			break;
 		}
-
+		// If this is the MF, then there is no parent dir at all. Bail out.
+		if (inode->fid == FID_MASTER_FILE) {
+			break;
+		}
+		// update DF_Record array of its parent
+		if ((result = add_record_to_parent(inode)) != fmr_Ok) {
+			break;
+		}
+		// and update the 'size' field of its parent dirs.
+		if ((result = update_parent_size(inode)) != fmr_Ok) {
+			break;
+		}
+		result = fmr_Ok;
 	} while (0);
+	
 	return result;
 }
 
@@ -480,7 +465,7 @@ iso_select_by_name(const uint16_t fid)
 		}
 		result = SW_OK;
 	} while (0);
-	
+
 	return result;
 }
 
