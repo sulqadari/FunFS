@@ -1,317 +1,10 @@
 #include "iso7816.h"
 #include "flash_emu.h"
 #include "debug.h"
+#include "iso7816_helpers.h"
 #include <string.h>
 
 static ValidityArea va;
-
-static void
-va_set_parent_df(uint16_t fid, uint16_t node)
-{
-	va.parent_dir.fid   = fid;
-	va.parent_dir.iNode = node;
-}
-
-static void
-va_set_current_df(uint16_t fid, uint16_t node)
-{
-	va.current_dir.fid   = fid;
-	va.current_dir.iNode = node;
-}
-
-static void
-va_set_current_ef(uint16_t fid, uint16_t node)
-{
-	va.current_file.fid   = fid;
-	va.current_file.iNode = node;
-}
-
-
-#define assert_eq(curr, expt) \
-	if (curr != expt) {       \
-		result = mm_Err;     \
-		break;                \
-	} 
-
-#define assert_leq(curr, expt) \
-	if (curr > expt) {         \
-		result = mm_Err;      \
-		break;                 \
-	}
-
-#define advance(expr) \
-	(expr += len)
-
-static uint16_t
-get_short(uint8_t* buff)
-{
-	return (((uint16_t)buff[0] << 8) | ((uint16_t)buff[1] & 0xFF));
-}
-
-/** TODO: implement parameters consistency check */
-static mm_Result
-parse_params(INode* inode, uint8_t* data, uint32_t data_len)
-{
-	mm_Result result = mm_Ok;
-	uint8_t* curr = data;
-	uint8_t* end  = data + data_len;
-
-	// 1. parse input string
-	do {
-		uint8_t tag = *curr++;
-		uint8_t len = *curr++;
-
-		if (tag != 0x62) {
-			result = mm_Err;
-			break;
-		}
-		
-		while (curr < end) {
-			tag = *curr++;
-			len = *curr++;
-			switch (tag) {
-				case 0x80: { // File size
-					assert_eq(len, 2);
-					inode->size = get_short(curr);
-					advance(curr);
-				} break;
-				case 0x82: { // file descriptor (e.g. DF, EF, LF, etc.)
-					assert_leq(len, 5);
-					memcpy(&inode->desc, curr, len);
-					advance(curr);
-				} break;
-				case 0x83: { // file ID (e.g. 3F00, 0101, etc.)
-					assert_eq(len, 2);
-					inode->fid = get_short(curr);
-					advance(curr);
-				} break;
-				case 0x84: { // application AID (for DFs only)
-					assert_leq(len, 16);
-					memcpy(&inode->aid, curr, len);
-					advance(curr);
-				} break;
-				case 0x88: { // short file ID
-					assert_eq(len, 1);
-					inode->sfi = *curr;
-					advance(curr);
-				} break;
-				case 0x8A: { // Life cycle stage
-					assert_eq(len, 1);
-					inode->lcs = *curr;
-					advance(curr);
-				} break;
-				case 0x8C: {  // security attributes in compact format
-					assert_leq(len, 7);
-					memcpy(&inode->compact, curr, len);
-					advance(curr);
-				} break;
-				case 0x8D: { // the FID of associated securiy environment
-					assert_eq(len, 2);
-					inode->se = get_short(curr);
-					advance(curr);
-				} break;
-				case 0xAB: {
-					assert_leq(len, 20);
-					memcpy(&inode->expanded, curr, len);
-					advance(curr);
-				} break;
-				default: {
-					result = mm_Err;
-				} break;
-			}
-
-			if (result != mm_Ok)
-				break;
-		}
-
-	} while (0);
-
-	return result;
-}
-
-/** pointer to the beginning of DF_Payload field. */
-#define df_data(expr) (uint32_t)&((DF_Payload*)expr->data)
-/** pointer to the DF_Payload::entries array */
-#define df_entries(expr) ((DF_Payload*)expr->data)->entries
-
-/** Adds to the DF_Payload::entries array an entry about newly created file */
-static mm_Result
-add_record_to_parent(INode* current)
-{
-	mm_Result result = mm_Ok;
-
-	// choose the parent depending on file type to be created:
-	// If we're about to create an EF, then we should start updating the 'size' field from current folder.
-	// Otherwise we need to proceed from parent folder.
-	uint16_t idx       = (current->desc[0] == ft_DF) ? va.parent_dir.iNode : va.current_dir.iNode;
-	INode* inode_array = (INode*)va.sblk.inodes_start;
-	INode* currentDf   = (INode*)&inode_array[idx];
-	
-	do {
-		uint32_t count = 0;
-		
-		// get the 'count' of parent folder. It will be used as an index into 'entries' array
-		if ((result = mm_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
-			break;
-		}
-		
-		DF_Record newRecord = {.iNode = va.sblk.inodes_count, .fid = current->fid};
-		// write the record about a new child of current folder.
-		if ((result = mm_write((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
-			break;
-		}
-		
-		// update the 'count' of parent folder.
-		if ((result = mm_write(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
-			break;
-		}
-
-	} while (0);
-
-	return result;
-}
-
-/** traverse the path from this DF right to the MF,
- * increasing the inode->size value of each parent folder. */
-static mm_Result
-update_parent_size(INode* current)
-{
-	mm_Result result = mm_Ok;
-	INode* inode_array = (INode*)va.sblk.inodes_start;
-	uint16_t idx = va.parent_dir.iNode;
-	uint16_t fid = va.parent_dir.fid;
-
-	do {
-		INode* parent = (INode*)&inode_array[idx];
-		if (parent->desc[0] != ft_DF) {
-			result = mm_Err;
-			break;
-		}
-		// add the size of newly create folder to the size of subsequent parent folder.
-		uint16_t updated_size = parent->size + current->size;
-		if ((result = mm_write((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != mm_Ok) {
-			result = mm_writeErr;
-			break;
-		}
-
-		// get the inode index of subsequent parent.
-		idx = df_entries(parent)[1].iNode;
-		fid = df_entries(parent)[1].fid;
-
-	} while (fid != 0); // fid=0000 means we've reached the end of file hierarchy
-
-	return result;
-}
-
-static mm_Result
-data_block_for_df(INode* new_df_node)
-{
-	mm_Result result = mm_Ok;
-
-	do {
-		// Assigning 3F00 to some another file is forbidden.
-		if ((va.sblk.inodes_count != 0x00) && (new_df_node->fid == FID_MASTER_FILE)) {
-			result = mm_Err;
-			break;
-		}
-
-		// The size of DF is always 256 bytes.
-		new_df_node->size = sizeof(DF_Payload);
-		// allocate a data block for the newly created DF
-		if ((new_df_node->data = mm_allocate(new_df_node->size)) == 0x00) {
-			result = mm_writeErr;
-			break;
-		}
-
-		// MIND THE SEQUENCE! firstable update the parent, and only after current.
-		va_set_parent_df(va.current_dir.fid, va.current_dir.iNode); // Current dir becomes 'parent'
-		va_set_current_df(new_df_node->fid, va.sblk.inodes_count);  // New one becomes 'current'
-		
-		// In each newly created dir, the first two records goes for itself and its parent
-		uint32_t count = 0;
-		mm_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.current_dir, sizeof(DF_Record));
-		mm_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.parent_dir,  sizeof(DF_Record));
-		mm_write(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
-	} while (0);
-
-	return result;
-}
-
-static mm_Result
-data_block_for_ef(INode* new_ef_node)
-{
-	mm_Result result = mm_Ok;
-	do {
-		// allocate a data block for the newly created DF
-		if ((new_ef_node->data = mm_allocate(new_ef_node->size)) == 0x00) {
-			result = mm_writeErr;
-			break;
-		}
-		va_set_current_ef(new_ef_node->fid, va.sblk.inodes_count);
-	} while (0);
-
-	return result;
-}
-
-static mm_Result
-allocate_data_block(INode* inode)
-{
-	mm_Result result = mm_Err;
-	FileType type = inode->desc[0];
-	
-	do {
-		// the first file must be of type MF.
-		if ((va.sblk.inodes_count == 0x00) && (inode->fid != FID_MASTER_FILE)) {
-			break;
-		}
-		if (type == ft_DF) {
-			result = data_block_for_df(inode);
-		} else if (type == ft_EF) {
-			result = data_block_for_ef(inode);
-		} else {
-			break;
-		}
-		// If this is the MF, then there is no parent dir at all. Bail out.
-		if (inode->fid == FID_MASTER_FILE) {
-			break;
-		}
-		// update DF_Record array of its parent
-		if ((result = add_record_to_parent(inode)) != mm_Ok) {
-			break;
-		}
-		// and update the 'size' field of its parent dirs.
-		if ((result = update_parent_size(inode)) != mm_Ok) {
-			break;
-		}
-		result = mm_Ok;
-	} while (0);
-
-	return result;
-}
-
-static mm_Result
-store_inode(INode* inode)
-{
-	mm_Result result = mm_Err;
-
-	do {
-		INode* inode_array = (INode*)va.sblk.inodes_start;
-		if ((result = mm_write((uint32_t)&inode_array[va.sblk.inodes_count], (uint8_t*)inode, sizeof(INode))) != mm_Ok) {
-			break;
-		}
-
-		// update the number of Inodes in INode table
-		va.sblk.inodes_count++;
-
-		// store the updated state of SuperBlock
-		if ((result = mm_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock))) != mm_Ok) {
-			break;
-		}
-
-	} while (0);
-
-	return result;
-}
 
 ISO_SW
 iso_initialize(void)
@@ -340,9 +33,9 @@ iso_initialize(void)
 
 		// IF: the file system is already initialized, then just set the MF as the current folder and bail out.
 		if (va.sblk.magic == 0xCAFEBABE) {
-			va_set_current_df(FID_MASTER_FILE, 0x00);          // Set the MF as the current dir
-			va_set_parent_df(0x00,0x00); // The master file hasn't parent dir.
-			va_set_current_ef(FID_NONE, FID_NONE);             // At startup there is no
+			hlp_va_set_current_df(&va, FID_MASTER_FILE, 0x00); // Set the MF as the current dir
+			hlp_va_set_parent_df(&va, 0x00,0x00);              // The master file hasn't parent dir.
+			hlp_va_set_current_ef(&va, FID_NONE, FID_NONE);    // At startup there is no
 			result = SW_OK;
 			break;
 		}
@@ -385,20 +78,22 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 		}
 
 		memset((uint8_t*)&inode, 0x00, sizeof(INode));
-		if (parse_params(&inode, data, data_len) != mm_Ok) {
+		if (hlp_parse_params(&inode, data, data_len) != mm_Ok) {
 			break;
 		}
-		if (allocate_data_block(&inode) != mm_Ok) {
+		if (hlp_allocate_data_block(&va, &inode) != mm_Ok) {
 			break;
 		}
-		if (store_inode(&inode) != mm_Ok) {
+		if (hlp_store_inode(&va, &inode) != mm_Ok) {
 			break;
 		}
 
 		result = SW_OK;
 	} while (0);
+
 	dbg_print_super_block(&va);
 	dbg_print_inode(&inode);
+	
 	return result;
 }
 
@@ -413,12 +108,12 @@ iso_select_by_name(const uint16_t fid)
 	INode* currentDf   = (INode*)&inode_array[idx];
 
 	do {
+		hlp_va_set_current_ef(&va, FID_NONE, FID_NONE);
 		// special case: MF always present and is always accessible
 		if (fid == FID_MASTER_FILE) {
 			result = SW_OK;
-			va_set_current_df(FID_MASTER_FILE, 0x00);
-			va_set_parent_df(0x00, 0x00);
-			va_set_current_ef(FID_NONE, FID_NONE);
+			hlp_va_set_current_df(&va, FID_MASTER_FILE, 0x00);
+			hlp_va_set_parent_df(&va, 0x00, 0x00);
 			break;
 		}
 
@@ -442,7 +137,7 @@ iso_select_by_name(const uint16_t fid)
 				// If the file we have found isn't of type DF, then just update the 'current file' field
 				// of VA and return.
 				if (currentDf->desc[0] != ft_DF) {
-					va_set_current_ef(next.fid, next.iNode);
+					hlp_va_set_current_ef(&va, next.fid, next.iNode);
 					break;
 				}
 
@@ -450,9 +145,8 @@ iso_select_by_name(const uint16_t fid)
 				uint16_t parent_idx = df_entries(currentDf)[1].iNode;
 				uint16_t parent_fid = df_entries(currentDf)[1].fid;
 
-				va_set_parent_df(parent_fid, parent_idx); // Current dir becomes 'parent'
-				va_set_current_df(next.fid, next.iNode);  // the one we're looking for becomes 'current'
-				va_set_current_ef(FID_NONE, FID_NONE);
+				hlp_va_set_parent_df(&va, parent_fid, parent_idx); // Current dir becomes 'parent'
+				hlp_va_set_current_df(&va, next.fid, next.iNode);  // the one we're looking for becomes 'current'
 				break;
 			}
 		}
@@ -463,7 +157,9 @@ iso_select_by_name(const uint16_t fid)
 		}
 		result = SW_OK;
 	} while (0);
+
 	dbg_print_va(&va);
+
 	return result;
 }
 
@@ -476,7 +172,7 @@ iso_select_by_path(uint8_t* data, uint32_t data_len)
 	uint16_t fid;
 
 	do {
-		fid = get_short(ptr);
+		fid = hlp_get_short(ptr);
 		if ((result = iso_select_by_name(fid)) != SW_OK)
 			break; 
 

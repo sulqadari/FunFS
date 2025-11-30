@@ -316,7 +316,7 @@ static ISO_SW
 test_05(void)
 {
 	ISO_SW result = SW_UNKNOWN;
-	printf("TEST 05\n");
+	printf("====================TEST 05\n");
 	do {
 		if (create_dir_hierarchy() != SW_OK) {
 			break;
@@ -361,11 +361,11 @@ test_05(void)
 	return result;
 }
 
-static mm_Result
+static ISO_SW
 test_06(void)
 {
 	ISO_SW result = SW_UNKNOWN;
-	printf("TEST 06\n");
+	printf("====================TEST 06\n");
 	do {
 		
 		if (create_flat_dir_hierarchy() != SW_OK) {
@@ -399,7 +399,7 @@ test_06(void)
 	return result;
 }
 
-static mm_Result
+static ISO_SW
 test_07(void)
 {
 	ISO_SW result = SW_UNKNOWN;
@@ -407,7 +407,7 @@ test_07(void)
 	cmd_t cmds[5];
 	uint8_t idx = 0;
 
-	printf("TEST 07\n");
+	printf("====================TEST 07\n");
 	do {
 		if (iso_initialize() != SW_OK) {
 			printf("ERROR: failed to initialize file system\n");
@@ -453,9 +453,12 @@ int
 main(int argc, char* argv[])
 {
 	// test_04();
-	test_05();
-	test_06();
-	test_07();
+	do {
+		if (test_05() != SW_OK) break;
+		if (test_06() != SW_OK) break;
+		if (test_07() != SW_OK) break;
+		printf("DONE!\n");
+	} while (0);
 
 	return 0;
 }

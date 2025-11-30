@@ -2,6 +2,7 @@ add_executable(${FUNFS_EXEC}
 	main.c	
 	flash_emu.c
 	iso7816.c
+	iso7816_helpers.c
 	debug.c
 )
 

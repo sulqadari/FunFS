@@ -6,6 +6,7 @@
 		"*.y": "plaintext",
 		"funfs.h": "c",
 		"flash_emu.h": "c",
-		"string.h": "c"
+		"string.h": "c",
+		"stdint.h": "c"
 	}
 }
