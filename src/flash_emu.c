@@ -9,7 +9,7 @@ static uint32_t fs_start_addr = 0x00;
 static uint32_t fs_upper_addr = 0x00;
 
 static void
-emu_set_bounds(void)
+mm_set_bounds(void)
 {
 	(void)sizeof(flash_emu);
 	fs_start_addr = (uint32_t)&flash_emu;
@@ -17,9 +17,9 @@ emu_set_bounds(void)
 }
 
 uint32_t
-emu_get_start_address(void)
+mm_get_start_address(void)
 {
-	emu_set_bounds();
+	mm_set_bounds();
 	return fs_start_addr;
 }
 
@@ -30,7 +30,7 @@ emu_get_start_address(void)
 #endif
 
 uint32_t
-emu_allocate(uint16_t size)
+mm_allocate(uint16_t size)
 {
 	size = WORD_ALIGNED(size);
 	block_t* current = (block_t*)flash_emu;
@@ -62,41 +62,41 @@ emu_allocate(uint16_t size)
 	return address;
 }
 
-emu_Result
-emu_write(uint32_t offset, uint8_t* data, uint16_t data_len)
+mm_Result
+mm_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
 	if (offset + data_len > fs_upper_addr) {
-		return fmr_writeErr;
+		return mm_writeErr;
 	}
 
 	// address to index convertation
 	offset = offset - fs_start_addr;
 	memcpy(&flash_emu[offset], data, data_len);
-	return fmr_Ok;
+	return mm_Ok;
 }
 
-emu_Result
-emu_read(uint32_t offset, uint8_t* data, uint16_t data_len)
+mm_Result
+mm_read(uint32_t offset, uint8_t* data, uint16_t data_len)
 {
 	if (offset + data_len > fs_upper_addr) {
-		return fmr_readErr;
+		return mm_readErr;
 	}
 
 	// address to index convertation
 	offset = offset - fs_start_addr;
 	memcpy(data, &flash_emu[offset], data_len);
-	return fmr_Ok;
+	return mm_Ok;
 }
 
 /**
  * Creates an 64 Kbyte flash memory simulation space.
  * If file already exists, it will be reused.
  */
-emu_Result
-emu_open_flash(void)
+mm_Result
+mm_open_flash(void)
 {
 	// size_t bytesRead = 0;
-	emu_Result result = fmr_Ok;
+	mm_Result result = mm_Ok;
 
 	do {
 		if (aFile != NULL) { // the 'FunFS.bin' is already openned. Bail out.
@@ -107,7 +107,7 @@ emu_open_flash(void)
   		aFile = fopen(FLASH_BINARY, "w");
 
 		if (aFile == NULL) {
-			result = fmr_fopenErr;
+			result = mm_fopenErr;
 			break;
 		}
 
@@ -116,15 +116,15 @@ emu_open_flash(void)
 	return result;
 }
 
-static emu_Result
+static mm_Result
 update_flash(void)
 {
-	emu_Result result = fmr_Ok;
+	mm_Result result = mm_Ok;
 
 	do {
 		if (aFile == NULL) {
 			fprintf(stderr, "ERROR: can't update %s binary because file isn't openned yet.\n", FLASH_BINARY);
-			result = fmr_fopenErr;
+			result = mm_fopenErr;
 			break;
 		}
 		
@@ -134,7 +134,7 @@ update_flash(void)
 		if (written < FLASH_SIZE_TOTAL) {
 			fprintf(stderr, "ERROR: couldn't update %s binary file.\n", FLASH_BINARY);
 			fclose(aFile);
-			result = fmr_writeErr;
+			result = mm_writeErr;
 			break;
 		}
 	
@@ -143,10 +143,10 @@ update_flash(void)
 	return result;
 }
 
-emu_Result
-emu_close_flash(void)
+mm_Result
+mm_close_flash(void)
 {
-	emu_Result result = fmr_Ok;
+	mm_Result result = mm_Ok;
 
 	if (aFile != NULL) {
 		result = update_flash();

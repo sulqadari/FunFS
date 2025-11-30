@@ -36,13 +36,13 @@ va_set_current_ef(uint16_t fid, uint16_t node)
 
 #define assert_eq(curr, expt) \
 	if (curr != expt) {       \
-		result = fmr_Err;     \
+		result = mm_Err;     \
 		break;                \
 	} 
 
 #define assert_leq(curr, expt) \
 	if (curr > expt) {         \
-		result = fmr_Err;      \
+		result = mm_Err;      \
 		break;                 \
 	}
 
@@ -56,10 +56,10 @@ get_short(uint8_t* buff)
 }
 	
 /** TODO: implement parameters consistency check */
-static emu_Result
+static mm_Result
 parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 {
-	emu_Result result = fmr_Ok;
+	mm_Result result = mm_Ok;
 	uint8_t* curr = data;
 	uint8_t* end  = data + data_len;
 
@@ -69,7 +69,7 @@ parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 		uint8_t len = *curr++;
 
 		if (tag != 0x62) {
-			result = fmr_Err;
+			result = mm_Err;
 			break;
 		}
 		
@@ -123,11 +123,11 @@ parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 					advance(curr);
 				} break;
 				default: {
-					result = fmr_Err;
+					result = mm_Err;
 				} break;
 			}
 
-			if (result != fmr_Ok)
+			if (result != mm_Ok)
 				break;
 		}
 
@@ -142,10 +142,10 @@ parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 #define df_entries(expr) ((DF_Payload*)expr->data)->entries
 
 /** Adds to the DF_Payload::entries array an entry about newly created file */
-static emu_Result
+static mm_Result
 add_record_to_parent(INode* current)
 {
-	emu_Result result = fmr_Ok;
+	mm_Result result = mm_Ok;
 
 	// choose the parent depending on file type to be created:
 	// If we're about to create an EF, then we should start updating the 'size' field from current folder.
@@ -158,18 +158,18 @@ add_record_to_parent(INode* current)
 		uint32_t count = 0;
 		
 		// get the 'count' of parent folder. It will be used as an index into 'entries' array
-		if ((result = emu_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+		if ((result = mm_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
 			break;
 		}
 		
 		DF_Record newRecord = {.iNode = va.sblk.inodes_count, .fid = current->fid};
 		// write the record about a new child of current folder.
-		if ((result = emu_write((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != fmr_Ok) {
+		if ((result = mm_write((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
 			break;
 		}
 		
 		// update the 'count' of parent folder.
-		if ((result = emu_write(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != fmr_Ok) {
+		if ((result = mm_write(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
 			break;
 		}
 
@@ -180,10 +180,10 @@ add_record_to_parent(INode* current)
 
 /** traverse the path from this DF right to the MF,
  * increasing the inode->size value of each parent folder. */
-static emu_Result
+static mm_Result
 update_parent_size(INode* current)
 {
-	emu_Result result = fmr_Ok;
+	mm_Result result = mm_Ok;
 	INode* inode_array = (INode*)va.sblk.inodes_start;
 	uint16_t idx = va.parent_dir.iNode;
 	uint16_t fid = va.parent_dir.fid;
@@ -191,13 +191,13 @@ update_parent_size(INode* current)
 	do {
 		INode* parent = (INode*)&inode_array[idx];
 		if (parent->desc[0] != ft_DF) {
-			result = fmr_Err;
+			result = mm_Err;
 			break;
 		}
 		// add the size of newly create folder to the size of subsequent parent folder.
 		uint16_t updated_size = parent->size + current->size;
-		if ((result = emu_write((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != fmr_Ok) {
-			result = fmr_writeErr;
+		if ((result = mm_write((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != mm_Ok) {
+			result = mm_writeErr;
 			break;
 		}
 
@@ -210,23 +210,23 @@ update_parent_size(INode* current)
 	return result;
 }
 
-static emu_Result
+static mm_Result
 data_block_for_df(INode* new_df_node)
 {
-	emu_Result result = fmr_Ok;
+	mm_Result result = mm_Ok;
 
 	do {
 		// Assigning 3F00 to some another file is forbidden.
 		if ((va.sblk.inodes_count != 0x00) && (new_df_node->fid == FID_MASTER_FILE)) {
-			result = fmr_Err;
+			result = mm_Err;
 			break;
 		}
 
 		// The size of DF is always 256 bytes.
 		new_df_node->size = sizeof(DF_Payload);
 		// allocate a data block for the newly created DF
-		if ((new_df_node->data = emu_allocate(new_df_node->size)) == 0x00) {
-			result = fmr_writeErr;
+		if ((new_df_node->data = mm_allocate(new_df_node->size)) == 0x00) {
+			result = mm_writeErr;
 			break;
 		}
 
@@ -236,23 +236,22 @@ data_block_for_df(INode* new_df_node)
 		
 		// In each newly created dir, the first two records goes for itself and its parent
 		uint32_t count = 0;
-		emu_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.current_dir, sizeof(DF_Record));
-		emu_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.parent_dir,  sizeof(DF_Record));
-		emu_write(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
+		mm_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.current_dir, sizeof(DF_Record));
+		mm_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va.parent_dir,  sizeof(DF_Record));
+		mm_write(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
 	} while (0);
 
 	return result;
 }
 
-static emu_Result
+static mm_Result
 data_block_for_ef(INode* new_ef_node)
 {
-	emu_Result result = fmr_Ok;
+	mm_Result result = mm_Ok;
 	do {
-		
 		// allocate a data block for the newly created DF
-		if ((new_ef_node->data = emu_allocate(new_ef_node->size)) == 0x00) {
-			result = fmr_writeErr;
+		if ((new_ef_node->data = mm_allocate(new_ef_node->size)) == 0x00) {
+			result = mm_writeErr;
 			break;
 		}
 		va_set_current_ef(new_ef_node->fid, va.sblk.inodes_count);
@@ -261,10 +260,10 @@ data_block_for_ef(INode* new_ef_node)
 	return result;
 }
 
-static emu_Result
+static mm_Result
 allocate_data_block(INode* inode)
 {
-	emu_Result result = fmr_Err;
+	mm_Result result = mm_Err;
 	FileType type = inode->desc[0];
 	
 	do {
@@ -284,27 +283,27 @@ allocate_data_block(INode* inode)
 			break;
 		}
 		// update DF_Record array of its parent
-		if ((result = add_record_to_parent(inode)) != fmr_Ok) {
+		if ((result = add_record_to_parent(inode)) != mm_Ok) {
 			break;
 		}
 		// and update the 'size' field of its parent dirs.
-		if ((result = update_parent_size(inode)) != fmr_Ok) {
+		if ((result = update_parent_size(inode)) != mm_Ok) {
 			break;
 		}
-		result = fmr_Ok;
+		result = mm_Ok;
 	} while (0);
-	
+
 	return result;
 }
 
-static emu_Result
+static mm_Result
 store_inode(INode* inode)
 {
-	emu_Result result = fmr_Err;
+	mm_Result result = mm_Err;
 
 	do {
 		INode* inode_array = (INode*)va.sblk.inodes_start;
-		if ((result = emu_write((uint32_t)&inode_array[va.sblk.inodes_count], (uint8_t*)inode, sizeof(INode))) != fmr_Ok) {
+		if ((result = mm_write((uint32_t)&inode_array[va.sblk.inodes_count], (uint8_t*)inode, sizeof(INode))) != mm_Ok) {
 			break;
 		}
 
@@ -312,7 +311,7 @@ store_inode(INode* inode)
 		va.sblk.inodes_count++;
 
 		// store the updated state of SuperBlock
-		if ((result = emu_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock))) != fmr_Ok) {
+		if ((result = mm_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock))) != mm_Ok) {
 			break;
 		}
 
@@ -334,14 +333,14 @@ iso_initialize(void)
 	do {
 		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
 
-		va.sblk_addr = emu_get_start_address() + sizeof(block_t);
+		va.sblk_addr = mm_get_start_address() + sizeof(block_t);
 
 		// Open (or create) persistent storage for a flash memory
-		if (emu_open_flash() != fmr_Ok) {
+		if (mm_open_flash() != mm_Ok) {
 			break;
 		}
 		// Read the 'Super Block' and find out has the file system been initialized previously or not
-		if (emu_read(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)) != fmr_Ok) {
+		if (mm_read(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)) != mm_Ok) {
 			break;
 		}
 
@@ -355,19 +354,19 @@ iso_initialize(void)
 		}
 
 		// OTHERWISE: this is the very first run: no MF, no file system, no nothing.
-		if ((va.sblk_addr = emu_allocate(sizeof(SuperBlock))) == 0) { // allocate space for the SuperBlock
+		if ((va.sblk_addr = mm_allocate(sizeof(SuperBlock))) == 0) { // allocate space for the SuperBlock
 			break;
 		}
 
 		uint32_t size = PAGE_SIZE * 6;	// allocate space for the Inodes table.
-		if ((va.sblk.inodes_start = emu_allocate(size)) == 0) {
+		if ((va.sblk.inodes_start = mm_allocate(size)) == 0) {
 			break;
 		}
 
 		va.sblk.magic           = 0xCAFEBABE;
 		va.sblk.inodes_count    = 0x00;
 		va.sblk.inodes_capacity = size / sizeof(INode);	// 1024 / 64 = 96
-		if (emu_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)) != fmr_Ok) { // store the state of SuperBlock
+		if (mm_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)) != mm_Ok) { // store the state of SuperBlock
 			break;
 		}
 
@@ -390,13 +389,13 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 		}
 
 		memset((uint8_t*)&inode, 0x00, sizeof(INode));
-		if (parse_params(&inode, data, data_len) != fmr_Ok) {
+		if (parse_params(&inode, data, data_len) != mm_Ok) {
 			break;
 		}
-		if (allocate_data_block(&inode) != fmr_Ok) {
+		if (allocate_data_block(&inode) != mm_Ok) {
 			break;
 		}
-		if (store_inode(&inode) != fmr_Ok) {
+		if (store_inode(&inode) != mm_Ok) {
 			break;
 		}
 
@@ -426,7 +425,7 @@ iso_select_by_name(const uint16_t fid)
 
 		uint32_t count = 0;
 		// get the 'count' of files in current folder.
-		if (emu_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t)) != fmr_Ok) {
+		if (mm_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t)) != mm_Ok) {
 			break;
 		}
 
@@ -434,7 +433,7 @@ iso_select_by_name(const uint16_t fid)
 		uint32_t i;
 		for (i = 0; i < count; ++i) {
 			// read from current DF's payload region an info about subsequent child. 
-			if (emu_read((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != fmr_Ok) {
+			if (mm_read((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != mm_Ok) {
 				break;
 			}
 

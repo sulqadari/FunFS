@@ -135,35 +135,35 @@ hex_to_bytes(const char* str, uint16_t* outLen)
 static uint8_t
 test_01(void)
 {
-	emu_open_flash();
+	mm_open_flash();
 
 	printf("INode size: %d\n", sizeof(INode));
 	for (uint32_t i = 0; i < FLASH_SIZE_TOTAL; i += sizeof(tempAnsr)) {
-		if(emu_read(i, tempAnsr, sizeof(tempAnsr)) != fmr_Ok) {
+		if(mm_read(i, tempAnsr, sizeof(tempAnsr)) != mm_Ok) {
 			fprintf(stderr, "EFFOR: failed to read from index %d\n", i);
 			return 1;
 		}
 		print_hex(tempAnsr, sizeof(tempAnsr));
 	}
 
-	if (emu_read(FLASH_SIZE_TOTAL - 3, tempAnsr, sizeof(tempAnsr)) == fmr_Ok) {
+	if (mm_read(FLASH_SIZE_TOTAL - 3, tempAnsr, sizeof(tempAnsr)) == mm_Ok) {
 		fprintf(stderr, "ERROR: failure expected because of boundary violation.\n");
 		return 1;
 	}
 
 	for (uint32_t i = 0; i < FLASH_SIZE_TOTAL; i += sizeof(tempData)) {
-		if(emu_write(i, tempData, sizeof(tempData)) != fmr_Ok) {
+		if(mm_write(i, tempData, sizeof(tempData)) != mm_Ok) {
 			fprintf(stderr, "EFFOR: failed to write at index %d\n", i);
 			return 1;
 		}
 	}
 
-	if (emu_write(FLASH_SIZE_TOTAL - 3, tempData, sizeof(tempData)) == fmr_Ok) {
+	if (mm_write(FLASH_SIZE_TOTAL - 3, tempData, sizeof(tempData)) == mm_Ok) {
 		fprintf(stderr, "EFFOR: Error expected.\n");
 		return 1;
 	}
 
-	emu_close_flash();
+	mm_close_flash();
 	return 0;
 }
 
@@ -194,7 +194,7 @@ test_02(void)
 		iso_create_file(cmd_create_mf, sizeof(cmd_create_mf));
 	}
 
-	emu_close_flash();
+	mm_close_flash();
 	return 0;
 }
 
@@ -300,14 +300,14 @@ create_dir_hierarchy(void)
 	return result;
 }
 
-static emu_Result
+static mm_Result
 test_04(void)
 {
-	emu_Result result = fmr_Ok;
+	mm_Result result = mm_Ok;
 
 	result = create_dir_hierarchy();
 
-	emu_close_flash();
+	mm_close_flash();
 	return result;
 }
 
@@ -356,11 +356,11 @@ test_05(void)
 	} while (0);
 	
 	
-	emu_close_flash();
+	mm_close_flash();
 	return result;
 }
 
-static emu_Result
+static mm_Result
 test_06(void)
 {
 	ISO_SW result = SW_UNKNOWN;
@@ -394,11 +394,11 @@ test_06(void)
 		result = SW_OK;
 	} while (0);
 
-	emu_close_flash();
+	mm_close_flash();
 	return result;
 }
 
-static emu_Result
+static mm_Result
 test_07(void)
 {
 	ISO_SW result = SW_UNKNOWN;
@@ -434,7 +434,7 @@ test_07(void)
 		result = SW_OK;
 	} while (0);
 
-	emu_close_flash();
+	mm_close_flash();
 	return result;
 }
 

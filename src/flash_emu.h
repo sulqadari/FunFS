@@ -13,13 +13,13 @@
 #define PAGE_ALIGNED(expr) (((expr) + 0x3FF) & 0xFFFFFC00)  // page = 1024 bytes
 
 typedef enum {
-	fmr_Ok,
-	fmr_readErr,
-	fmr_writeErr,
-	fmr_fopenErr,
-	fmr_InodeTableFull,
-	fmr_Err
-} emu_Result;
+	mm_Ok,
+	mm_readErr,
+	mm_writeErr,
+	mm_fopenErr,
+	mm_InodeTableFull,
+	mm_Err
+} mm_Result;
 
 /** Flash Memory block */
 typedef struct {
@@ -27,15 +27,15 @@ typedef struct {
 	uint32_t prev;
 } block_t;
 
-uint32_t emu_get_start_address(void);
+uint32_t mm_get_start_address(void);
 
-uint32_t emu_allocate(uint16_t size);
-// emu_Result emu_deallocate(uint32_t offset);
-// emu_Result emu_defragmentate(void);
-emu_Result emu_write(uint32_t offset, uint8_t* data, uint16_t data_len);
-emu_Result emu_read(uint32_t offset, uint8_t* data, uint16_t data_len);
+uint32_t mm_allocate(uint16_t size);
+// mm_Result mm_deallocate(uint32_t offset);
+// mm_Result mm_defragmentate(void);
+mm_Result mm_write(uint32_t offset, uint8_t* data, uint16_t data_len);
+mm_Result mm_read(uint32_t offset, uint8_t* data, uint16_t data_len);
 
-emu_Result emu_open_flash(void);
-emu_Result emu_close_flash(void);
+mm_Result mm_open_flash(void);
+mm_Result mm_close_flash(void);
 
 #endif /* FUNFS_FLASH_EMU_H */
