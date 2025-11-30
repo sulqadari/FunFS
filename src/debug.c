@@ -14,6 +14,7 @@ void
 dbg_print_inode(INode* node)
 {
 	printf(
+		"INode\n"
 		"size:     %d\n"
 		"desc:     %02X\n"
 		"fid:      %02X\n"
@@ -23,14 +24,46 @@ dbg_print_inode(INode* node)
 		node->size, node->desc[0], node->fid, node->sfi,
 		node->lcs, node->se
 	);
-	print_array(node->aid, 16, "AID");
-	print_array(node->compact, 7, "compact SA");
-	print_array(node->expanded, 20, "expanded SA");
+	print_array(node->aid, 16,      "AID         ");
+	print_array(node->compact, 7,   "compact SA  ");
+	print_array(node->expanded, 20, "expanded SA ");
 	printf("\n");
 }
 
 void
-dgb_print_va(ValidityArea* va)
+dbg_print_super_block(ValidityArea* va)
 {
+	printf(
+		"Super Block\n"
+		"    magic: %02X\n"
+		"    inodes count: %d\n"
+		"    inodes capacity: %d\n\n",
+		va->sblk.magic,va->sblk.inodes_count,va->sblk.inodes_capacity
+	);
+}
 
+void
+dbg_print_va(ValidityArea* va)
+{
+	printf(
+		"Validity Area\n"
+		"parent dir\n"
+		"    node: %02X\n"
+		"    fid:  %02X\n"
+		"current dir\n"
+		"    node: %02X\n"
+		"    fid:  %02X\n"
+		"current file\n"
+		"    node: %02X\n"
+		"    fid:  %02X\n\n",
+		va->parent_dir.iNode, va->parent_dir.fid,
+		va->current_dir.iNode, va->current_dir.fid,
+		va->current_file.iNode, va->current_file.fid
+	);
+}
+
+void
+dbg_print_cmd_name(const char* name)
+{
+	printf("**********************%s**********************\n\n", name);
 }

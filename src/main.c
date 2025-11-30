@@ -289,14 +289,15 @@ create_dir_hierarchy(void)
 				break;
 			}
 		}
-		
-		for (uint8_t i = 0; i < idx; ++i) {
-			free(cmds[i].cmd);
-			cmds[i].len = 0;
-		}
 
 		result = SW_OK;
 	} while (0);
+
+	for (uint8_t i = 0; i < idx; ++i) {
+		free(cmds[i].cmd);
+		cmds[i].len = 0;
+	}
+
 	return result;
 }
 
@@ -427,13 +428,23 @@ test_07(void)
 			}
 		}
 		
-		for (uint8_t i = 0; i < idx; ++i) {
-			free(cmds[i].cmd);
-			cmds[i].len = 0;
+		if (iso_select_by_name(0x1111) != SW_OK) {
+			printf("ERROR: failed to select MF\n");
+			break;
 		}
+		if (iso_select_by_name(0x1112) != SW_OK) {
+			printf("ERROR: failed to select 4F00\n");
+			break;
+		}
+
 		result = SW_OK;
 	} while (0);
 
+	for (uint8_t i = 0; i < idx; ++i) {
+		free(cmds[i].cmd);
+		cmds[i].len = 0;
+	}
+	
 	mm_close_flash();
 	return result;
 }

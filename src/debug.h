@@ -7,6 +7,8 @@
 #include <stdint.h>
 
 void dbg_print_inode(INode* node);
-void dgb_print_va(ValidityArea* va);
+void dbg_print_va(ValidityArea* va);
+void dbg_print_super_block(ValidityArea* va);
+void dbg_print_cmd_name(const char* name);
 
 #endif /* FUNFS_DEBUG_H */

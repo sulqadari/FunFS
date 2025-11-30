@@ -316,6 +316,7 @@ store_inode(INode* inode)
 ISO_SW
 iso_initialize(void)
 {
+	dbg_print_cmd_name("INITIALIZE");
 	ISO_SW result = SW_MEMORY_FAILURE;
 	
 	(void)sizeof(DF_Record);
@@ -372,6 +373,8 @@ iso_initialize(void)
 ISO_SW
 iso_create_file(uint8_t* data, uint32_t data_len)
 {
+	dbg_print_cmd_name("CREATE FILE");
+
 	ISO_SW result = SW_UNKNOWN;
 	INode inode;
 
@@ -394,6 +397,7 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 
 		result = SW_OK;
 	} while (0);
+	dbg_print_super_block(&va);
 	dbg_print_inode(&inode);
 	return result;
 }
@@ -401,6 +405,7 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 ISO_SW
 iso_select_by_name(const uint16_t fid)
 {
+	dbg_print_cmd_name("SELECT BY NAME");
 	ISO_SW result = SW_UNKNOWN;
 
 	uint16_t idx       = va.current_dir.iNode;
@@ -458,13 +463,14 @@ iso_select_by_name(const uint16_t fid)
 		}
 		result = SW_OK;
 	} while (0);
-
+	dbg_print_va(&va);
 	return result;
 }
 
 ISO_SW
 iso_select_by_path(uint8_t* data, uint32_t data_len)
 {
+	dbg_print_cmd_name("SELECT BY PATH");
 	ISO_SW result = SW_UNKNOWN;
 	uint8_t* ptr = data;
 	uint16_t fid;
@@ -476,6 +482,6 @@ iso_select_by_path(uint8_t* data, uint32_t data_len)
 
 		ptr += 2;
 	} while (data_len -= 2);
-
+	
 	return result;
 }
