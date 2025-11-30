@@ -1,14 +1,7 @@
 #include "iso7816.h"
 #include "flash_emu.h"
+#include "debug.h"
 #include <string.h>
-
-typedef struct {
-	DF_Record  parent_dir;
-	DF_Record  current_dir;
-	DF_Record  current_file;
-	SuperBlock sblk;
-	uint32_t   sblk_addr;
-} ValidityArea;
 
 static ValidityArea va;
 
@@ -54,7 +47,7 @@ get_short(uint8_t* buff)
 {
 	return (((uint16_t)buff[0] << 8) | ((uint16_t)buff[1] & 0xFF));
 }
-	
+
 /** TODO: implement parameters consistency check */
 static mm_Result
 parse_params(INode* inode, uint8_t* data, uint32_t data_len)
@@ -401,6 +394,7 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 
 		result = SW_OK;
 	} while (0);
+	dbg_print_inode(&inode);
 	return result;
 }
 

@@ -1,5 +1,5 @@
-#ifndef FUNFS_FILESYSTEM_H
-#define FUNFS_FILESYSTEM_H
+#ifndef FUNFS_ISO7816_H
+#define FUNFS_ISO7816_H
 
 #include <stdint.h>
 
@@ -69,10 +69,18 @@ typedef struct {
 	DF_Record entries[256 / sizeof(DF_Record) - 1];
 } DF_Payload;
 
+typedef struct {
+	DF_Record  parent_dir;
+	DF_Record  current_dir;
+	DF_Record  current_file;
+	SuperBlock sblk;
+	uint32_t   sblk_addr;
+} ValidityArea;
+
 ISO_SW iso_initialize(void);
 
 ISO_SW iso_create_file(uint8_t*    data, uint32_t data_len);
 ISO_SW iso_select_by_path(uint8_t* data, uint32_t data_len);
 ISO_SW iso_select_by_name(const uint16_t fid);
 
-#endif /* FUNFS_FILESYSTEM_H */
+#endif /* FUNFS_ISO7816_H */
