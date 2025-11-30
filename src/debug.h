@@ -10,5 +10,5 @@ void dbg_print_inode(INode* node);
 void dbg_print_va(ValidityArea* va);
 void dbg_print_super_block(ValidityArea* va);
 void dbg_print_cmd_name(const char* name);
-
+void dbg_print_value(uint32_t value, const char* name);
 #endif /* FUNFS_DEBUG_H */

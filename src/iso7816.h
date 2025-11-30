@@ -34,6 +34,32 @@ typedef enum {
 	SW_UNKNOWN                       = 0x6F00
 } ISO_SW;
 
+typedef struct {
+	uint8_t  desc; // (ISO 7816-4, c. 7.4.5 and Table 11)
+	uint8_t  dcb;  // data coding byte (ISO 7816-4, Table 118)
+	uint16_t record_len;
+	uint16_t records_total;
+} FileDesc;
+
+typedef struct {
+	uint8_t amb_is_proprietaty:        1;  // access mode byte
+	uint8_t amb_delete_self:           1;
+	uint8_t amb_terminate:             1;
+	uint8_t amb_activate:              1;
+	uint8_t amb_deactivate:            1;
+	uint8_t amb_createDF_or_write:     1;
+	uint8_t amb_createEF_or_update:    1;
+	uint8_t amb_del_child_or_read_rec: 1;
+
+	uint8_t scb_delete_self;
+	uint8_t scb_terminate;
+	uint8_t scb_activate;
+	uint8_t scb_deactivate;
+	uint8_t scb_createDF_or_write;
+	uint8_t scb_createEF_or_update;
+	uint8_t scb_del_child_or_read_rec;
+} CompactSA;
+
 /** Keeps information about each file on the file system */
 typedef struct {
 	uint16_t size;        // 0x80; File size       (EF only)
@@ -42,7 +68,7 @@ typedef struct {
 	uint8_t  aid[16];     // 0x84; application AID (DF only)
 	uint8_t  sfi;         // 0x88; short file ID   (EF only)
 	uint8_t  lcs;         // 0x8A; Life cycle stage
-	uint8_t compact[7];   // 0x8C; security attributes in compact format  
+	uint8_t compact[8];   // 0x8C; security attributes in compact format  
 	uint16_t se;          // 0x8D; the FID of associated securiy environment (DF only)
 	uint8_t expanded[20]; // 0xAB; security attribute in expanded format 
 	uint32_t data;        // points to the associated data block

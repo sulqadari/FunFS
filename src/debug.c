@@ -67,3 +67,8 @@ dbg_print_cmd_name(const char* name)
 {
 	printf("**********************%s**********************\n\n", name);
 }
+
+void dbg_print_value(uint32_t value, const char* name)
+{
+	printf("%s: %d\n", name, value);
+}

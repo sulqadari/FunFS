@@ -12,11 +12,14 @@ iso_initialize(void)
 	dbg_print_cmd_name("INITIALIZE");
 	ISO_SW result = SW_MEMORY_FAILURE;
 	
-	(void)sizeof(DF_Record);
-	(void)sizeof(DF_Payload);
-	(void)sizeof(INode);
-	(void)sizeof(SuperBlock);
-	(void)sizeof(ValidityArea);
+	dbg_print_value(sizeof(ValidityArea), "sizeof(ValidityArea)");
+	dbg_print_value(sizeof(SuperBlock),   "sizeof(SuperBlock)  ");
+	dbg_print_value(sizeof(DF_Record),    "sizeof(DF_Record)   ");
+	dbg_print_value(sizeof(DF_Payload),   "sizeof(DF_Payload)  ");
+	dbg_print_value(sizeof(INode),        "sizeof(INode)       ");
+	dbg_print_value(sizeof(CompactSA),    "sizeof(CompactSA)   ");
+	dbg_print_value(sizeof(FileDesc),     "sizeof(FileDesc)    ");
+	
 	do {
 		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
 
