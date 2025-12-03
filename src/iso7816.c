@@ -17,46 +17,44 @@ iso_initialize(void)
 	dbg_print_value(sizeof(DF_Record),    "sizeof(DF_Record)   ");
 	dbg_print_value(sizeof(DF_Payload),   "sizeof(DF_Payload)  ");
 	dbg_print_value(sizeof(INode),        "sizeof(INode)       ");
-	dbg_print_value(sizeof(CompactSA),    "sizeof(CompactSA)   ");
-	dbg_print_value(sizeof(FileDesc),     "sizeof(FileDesc)    ");
 	
 	do {
 		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
 
-		va.sblk_addr = mm_get_start_address() + sizeof(block_t);
+		va.spr_blk_addr = mm_get_start_address() + sizeof(block_t);
 
 		// Open (or create) persistent storage for a flash memory
 		if (mm_open_flash() != mm_Ok) {
 			break;
 		}
 		// Read the 'Super Block' and find out has the file system been initialized previously or not
-		if (mm_read(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)) != mm_Ok) {
+		if (mm_read(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != mm_Ok) {
 			break;
 		}
 
 		// IF: the file system is already initialized, then just set the MF as the current folder and bail out.
-		if (va.sblk.magic == 0xCAFEBABE) {
+		if (va.spr_blk.magic == 0xCAFEBABE) {
 			hlp_va_set_current_df(&va, FID_MASTER_FILE, 0x00); // Set the MF as the current dir
-			hlp_va_set_parent_df(&va, 0x00,0x00);              // The master file hasn't parent dir.
-			hlp_va_set_current_ef(&va, FID_NONE, FID_NONE);    // At startup there is no
+			hlp_va_set_parent_df( &va, 0x00,0x00); // The master file hasn't parent dir.
+			hlp_va_set_current_ef(&va, FID_NONE, FID_NONE); // At startup there is no
 			result = SW_OK;
 			break;
 		}
 
 		// OTHERWISE: this is the very first run: no MF, no file system, no nothing.
-		if ((va.sblk_addr = mm_allocate(sizeof(SuperBlock))) == 0) { // allocate space for the SuperBlock
+		if ((va.spr_blk_addr = mm_allocate(sizeof(SuperBlock))) == 0) { // allocate space for the SuperBlock
 			break;
 		}
 
 		uint32_t size = PAGE_SIZE * 6;	// allocate space for the Inodes table.
-		if ((va.sblk.inodes_start = mm_allocate(size)) == 0) {
+		if ((va.spr_blk.inodes_start = mm_allocate(size)) == 0) {
 			break;
 		}
 
-		va.sblk.magic           = 0xCAFEBABE;
-		va.sblk.inodes_count    = 0x00;
-		va.sblk.inodes_capacity = size / sizeof(INode);	// 1024 / 64 = 96
-		if (mm_write(va.sblk_addr, (uint8_t*)&va.sblk, sizeof(SuperBlock)) != mm_Ok) { // store the state of SuperBlock
+		va.spr_blk.magic           = 0xCAFEBABE;
+		va.spr_blk.inodes_count    = 0x00;
+		va.spr_blk.inodes_capacity = size / sizeof(INode);	// 1024 / 64 = 96
+		if (mm_write(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != mm_Ok) { // store the state of SuperBlock
 			break;
 		}
 
@@ -76,7 +74,7 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 
 	do {
 		// we cant't create more than 'inodes_capacity' files.
-		if (va.sblk.inodes_count >= va.sblk.inodes_capacity) {
+		if (va.spr_blk.inodes_count >= va.spr_blk.inodes_capacity) {
 			break;
 		}
 
@@ -107,7 +105,7 @@ iso_select_by_name(const uint16_t fid)
 	ISO_SW result = SW_UNKNOWN;
 
 	uint16_t idx       = va.current_dir.iNode;
-	INode* inode_array = (INode*)va.sblk.inodes_start;
+	INode* inode_array = (INode*)va.spr_blk.inodes_start;
 	INode* currentDf   = (INode*)&inode_array[idx];
 
 	do {

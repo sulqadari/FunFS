@@ -16,7 +16,6 @@ typedef enum {
 } FileType;
 
 typedef enum {
-	SW_OK                            = 0x9000,
 	SW_SELECTED_FILE_DEACTIVATED     = 0x6283,
 	SW_MEMORY_FAILURE                = 0x6581,
 	SW_SECURITY_STATUS_NOT_SATISFIED = 0x6982,
@@ -31,34 +30,10 @@ typedef enum {
 	SW_DF_NAME_ALREADY_EXISTS        = 0x6A8A,
 	SW_INS_NOT_SUPPORTED             = 0x6D00,
 	SW_CLA_NOT_SUPPORTED             = 0x6E00,
-	SW_UNKNOWN                       = 0x6F00
+	SW_UNKNOWN                       = 0x6F00,
+	SW_OK                            = 0x9000,
 } ISO_SW;
 
-typedef struct {
-	uint8_t  desc; // (ISO 7816-4, c. 7.4.5 and Table 11)
-	uint8_t  dcb;  // data coding byte (ISO 7816-4, Table 118)
-	uint16_t record_len;
-	uint16_t records_total;
-} FileDesc;
-
-typedef struct {
-	uint8_t amb_is_proprietaty:        1;  // access mode byte
-	uint8_t amb_delete_self:           1;
-	uint8_t amb_terminate:             1;
-	uint8_t amb_activate:              1;
-	uint8_t amb_deactivate:            1;
-	uint8_t amb_createDF_or_write:     1;
-	uint8_t amb_createEF_or_update:    1;
-	uint8_t amb_del_child_or_read_rec: 1;
-
-	uint8_t scb_delete_self;
-	uint8_t scb_terminate;
-	uint8_t scb_activate;
-	uint8_t scb_deactivate;
-	uint8_t scb_createDF_or_write;
-	uint8_t scb_createEF_or_update;
-	uint8_t scb_del_child_or_read_rec;
-} CompactSA;
 
 /** Keeps information about each file on the file system */
 typedef struct {
@@ -91,17 +66,17 @@ typedef struct {
 } DF_Record;
 
 typedef struct {
-	uint32_t count;
-	DF_Record entries[256 / sizeof(DF_Record) - 1];
-} DF_Payload;
-
-typedef struct {
 	DF_Record  parent_dir;
 	DF_Record  current_dir;
 	DF_Record  current_file;
-	SuperBlock sblk;
-	uint32_t   sblk_addr;
+	SuperBlock spr_blk;
+	uint32_t   spr_blk_addr;
 } ValidityArea;
+
+typedef struct {
+	uint32_t count;
+	DF_Record entries[256 / sizeof(DF_Record) - 1];
+} DF_Payload;
 
 ISO_SW iso_initialize(void);
 

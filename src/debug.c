@@ -38,7 +38,7 @@ dbg_print_super_block(ValidityArea* va)
 		"    magic: %02X\n"
 		"    inodes count: %d\n"
 		"    inodes capacity: %d\n\n",
-		va->sblk.magic,va->sblk.inodes_count,va->sblk.inodes_capacity
+		va->spr_blk.magic,va->spr_blk.inodes_count,va->spr_blk.inodes_capacity
 	);
 }
 

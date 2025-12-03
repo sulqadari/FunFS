@@ -26,7 +26,7 @@ add_record_to_parent(ValidityArea* va, INode* current)
 	// If we're about to create an EF, then we should start updating the 'size' field from current folder.
 	// Otherwise we need to proceed from parent folder.
 	uint16_t idx       = (current->desc[0] == ft_DF) ? va->parent_dir.iNode : va->current_dir.iNode;
-	INode* inode_array = (INode*)va->sblk.inodes_start;
+	INode* inode_array = (INode*)va->spr_blk.inodes_start;
 	INode* currentDf   = (INode*)&inode_array[idx];
 	
 	do {
@@ -37,7 +37,7 @@ add_record_to_parent(ValidityArea* va, INode* current)
 			break;
 		}
 		
-		DF_Record newRecord = {.iNode = va->sblk.inodes_count, .fid = current->fid};
+		DF_Record newRecord = {.iNode = va->spr_blk.inodes_count, .fid = current->fid};
 		// write the record about a new child of current folder.
 		if ((result = mm_write((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
 			break;
@@ -59,7 +59,7 @@ static mm_Result
 update_parent_size(ValidityArea* va, INode* current)
 {
 	mm_Result result = mm_Ok;
-	INode* inode_array = (INode*)va->sblk.inodes_start;
+	INode* inode_array = (INode*)va->spr_blk.inodes_start;
 	uint16_t idx = va->parent_dir.iNode;
 	uint16_t fid = va->parent_dir.fid;
 
@@ -80,7 +80,7 @@ update_parent_size(ValidityArea* va, INode* current)
 		idx = df_entries(parent)[1].iNode;
 		fid = df_entries(parent)[1].fid;
 
-	} while (fid != 0); // fid=0000 means we've reached the end of file hierarchy
+	} while (fid != 0x00); // fid=FFFF means we've reached the end of file hierarchy
 
 	return result;
 }
@@ -92,7 +92,7 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 
 	do {
 		// Assigning 3F00 to some another file is forbidden.
-		if ((va->sblk.inodes_count != 0x00) && (new_df_node->fid == FID_MASTER_FILE)) {
+		if ((va->spr_blk.inodes_count != 0x00) && (new_df_node->fid == FID_MASTER_FILE)) {
 			result = mm_Err;
 			break;
 		}
@@ -107,7 +107,7 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 
 		// MIND THE SEQUENCE! firstable update the parent, and only after current.
 		hlp_va_set_parent_df(va, va->current_dir.fid, va->current_dir.iNode); // Current dir becomes 'parent'
-		hlp_va_set_current_df(va, new_df_node->fid, va->sblk.inodes_count);  // New one becomes 'current'
+		hlp_va_set_current_df(va, new_df_node->fid, va->spr_blk.inodes_count);  // New one becomes 'current'
 		
 		// In each newly created dir, the first two records goes for itself and its parent
 		uint32_t count = 0;
@@ -129,7 +129,7 @@ data_block_for_ef(ValidityArea* va, INode* new_ef_node)
 			result = mm_writeErr;
 			break;
 		}
-		hlp_va_set_current_ef(va, new_ef_node->fid, va->sblk.inodes_count);
+		hlp_va_set_current_ef(va, new_ef_node->fid, va->spr_blk.inodes_count);
 	} while (0);
 
 	return result;
@@ -251,7 +251,7 @@ hlp_allocate_data_block(ValidityArea* va, INode* inode)
 	
 	do {
 		// the first file must be of type MF.
-		if ((va->sblk.inodes_count == 0x00) && (inode->fid != FID_MASTER_FILE)) {
+		if ((va->spr_blk.inodes_count == 0x00) && (inode->fid != FID_MASTER_FILE)) {
 			break;
 		}
 		if (type == ft_DF) {
@@ -285,16 +285,16 @@ hlp_store_inode(ValidityArea* va, INode* inode)
 	mm_Result result = mm_Err;
 
 	do {
-		INode* inode_array = (INode*)va->sblk.inodes_start;
-		if ((result = mm_write((uint32_t)&inode_array[va->sblk.inodes_count], (uint8_t*)inode, sizeof(INode))) != mm_Ok) {
+		INode* inode_array = (INode*)va->spr_blk.inodes_start;
+		if ((result = mm_write((uint32_t)&inode_array[va->spr_blk.inodes_count], (uint8_t*)inode, sizeof(INode))) != mm_Ok) {
 			break;
 		}
 
 		// update the number of Inodes in INode table
-		va->sblk.inodes_count++;
+		va->spr_blk.inodes_count++;
 
 		// store the updated state of SuperBlock
-		if ((result = mm_write(va->sblk_addr, (uint8_t*)&va->sblk, sizeof(SuperBlock))) != mm_Ok) {
+		if ((result = mm_write(va->spr_blk_addr, (uint8_t*)&va->spr_blk, sizeof(SuperBlock))) != mm_Ok) {
 			break;
 		}
 
