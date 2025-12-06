@@ -11,6 +11,7 @@
 
 #define WORD_ALIGNED(expr) (((expr) +  0x03) & 0xFFFFFFFC)  // word = 4 bytes
 #define PAGE_ALIGNED(expr) (((expr) + 0x3FF) & 0xFFFFFC00)  // page = 1024 bytes
+#define HEX_ALIGNED(expr)  (((expr) +  0x0F) & 0xFFFFFFF0)  // hex = 16 bytes
 
 typedef enum {
 	mm_Ok,

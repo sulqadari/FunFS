@@ -51,7 +51,7 @@ mm_allocate(uint16_t size)
 
 			// shift to the next block
 			current = (block_t*)((uint8_t*)current + current->len + sizeof(block_t));
-			
+			current = (block_t*)HEX_ALIGNED((uint32_t)current);
 			// check if the current address doesn't exceed flash boundary
 			if ((uint32_t)current + size >= fs_upper_addr) {
 				break;
@@ -69,7 +69,7 @@ mm_write(uint32_t offset, uint8_t* data, uint16_t data_len)
 		return mm_writeErr;
 	}
 
-	// address to index convertation
+	// address to index conversion
 	offset = offset - fs_start_addr;
 	memcpy(&flash_emu[offset], data, data_len);
 	return mm_Ok;
@@ -82,7 +82,7 @@ mm_read(uint32_t offset, uint8_t* data, uint16_t data_len)
 		return mm_readErr;
 	}
 
-	// address to index convertation
+	// address to index conversion
 	offset = offset - fs_start_addr;
 	memcpy(data, &flash_emu[offset], data_len);
 	return mm_Ok;
