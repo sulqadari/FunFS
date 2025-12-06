@@ -12,11 +12,11 @@ iso_initialize(void)
 	dbg_print_cmd_name("INITIALIZE");
 	ISO_SW result = SW_MEMORY_FAILURE;
 	
-	dbg_print_value(sizeof(ValidityArea), "sizeof(ValidityArea)");
-	dbg_print_value(sizeof(SuperBlock),   "sizeof(SuperBlock)  ");
-	dbg_print_value(sizeof(DF_Record),    "sizeof(DF_Record)   ");
-	dbg_print_value(sizeof(DF_Payload),   "sizeof(DF_Payload)  ");
-	dbg_print_value(sizeof(INode),        "sizeof(INode)       ");
+	dbg_print_value(sizeof(ValidityArea), "ValidityArea");
+	dbg_print_value(sizeof(SuperBlock),   "SuperBlock  ");
+	dbg_print_value(sizeof(DF_Record),    "DF_Record   ");
+	dbg_print_value(sizeof(DF_Payload),   "DF_Payload  ");
+	dbg_print_value(sizeof(INode),        "INode       ");
 	
 	do {
 		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
@@ -126,6 +126,7 @@ iso_select_by_name(const uint16_t fid)
 
 		DF_Record next;
 		uint32_t i;
+
 		for (i = 0; i < count; ++i) {
 			// read from current DF's payload region an info about subsequent child. 
 			if (mm_read((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != mm_Ok) {
@@ -134,7 +135,7 @@ iso_select_by_name(const uint16_t fid)
 
 			if (fid == next.fid) {
 				currentDf = (INode*)&inode_array[next.iNode];
-				
+
 				// If the file we have found isn't of type DF, then just update the 'current file' field
 				// of VA and return.
 				if (currentDf->desc[0] != ft_DF) {
