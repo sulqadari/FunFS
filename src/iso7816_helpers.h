@@ -17,6 +17,9 @@ mm_Result hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len);
 mm_Result hlp_allocate_data_block(ValidityArea* va, INode* inode);
 mm_Result hlp_store_inode(ValidityArea* va, INode* inode);
 
+mm_Result read_data (uint32_t offset, uint8_t* data, uint32_t len);
+mm_Result write_data(uint32_t offset, uint8_t* data, uint32_t len);
+
 uint16_t hlp_get_short(uint8_t* buff);
 
 #endif /* FUNFS_ISO7816_HELPER_H */

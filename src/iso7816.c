@@ -24,11 +24,11 @@ iso_initialize(void)
 		va.spr_blk_addr = mm_get_start_address() + sizeof(block_t);
 
 		// Open (or create) persistent storage for a flash memory
-		if (mm_open_flash() != mm_Ok) {
+		if (mm_open_image() != mm_Ok) {
 			break;
 		}
 		// Read the 'Super Block' and find out has the file system been initialized previously or not
-		if (mm_read(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != mm_Ok) {
+		if (read_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != mm_Ok) {
 			break;
 		}
 
@@ -46,7 +46,7 @@ iso_initialize(void)
 			break;
 		}
 
-		uint32_t size = PAGE_SIZE * 6;	// allocate space for the Inodes table.
+		uint32_t size = PAGE_SIZE * 1;	// allocate space for the Inodes table.
 		if ((va.spr_blk.inodes_start = mm_allocate(size)) == 0) {
 			break;
 		}
@@ -54,7 +54,7 @@ iso_initialize(void)
 		va.spr_blk.magic           = 0xCAFEBABE;
 		va.spr_blk.inodes_count    = 0x00;
 		va.spr_blk.inodes_capacity = size / sizeof(INode);	// 1024 / 64 = 96
-		if (mm_write(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != mm_Ok) { // store the state of SuperBlock
+		if (write_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != mm_Ok) { // store the state of SuperBlock
 			break;
 		}
 
@@ -120,7 +120,7 @@ iso_select_by_name(const uint16_t fid)
 
 		uint32_t count = 0;
 		// get the 'count' of files in current folder.
-		if (mm_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t)) != mm_Ok) {
+		if (read_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t)) != mm_Ok) {
 			break;
 		}
 
@@ -129,7 +129,7 @@ iso_select_by_name(const uint16_t fid)
 
 		for (i = 0; i < count; ++i) {
 			// read from current DF's payload region an info about subsequent child. 
-			if (mm_read((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != mm_Ok) {
+			if (read_data((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != mm_Ok) {
 				break;
 			}
 

@@ -16,6 +16,48 @@
 #define advance(expr) \
 	(expr += len)
 
+
+mm_Result
+read_data(uint32_t offset, uint8_t* data, uint32_t len)
+{
+	mm_Result result   = mm_Ok;
+	uint16_t half_word = 0;
+
+	for (uint32_t i = 0; i < len; i += 2) {
+
+		if ((result = mm_read(offset + i, &half_word)) != mm_Ok) {
+			break;
+		}
+
+		data[i + 1] = (uint8_t)((half_word >> 8) & 0xFF);
+		data[i]     = (uint8_t)( half_word       & 0xFF);
+		half_word   = 0;
+	}
+
+	return result;
+}
+
+mm_Result
+write_data(uint32_t offset, uint8_t* data, uint32_t len)
+{
+	mm_Result result   = mm_Ok;
+	uint16_t half_word = 0;
+
+	for (uint32_t i = 0; i < len; i += 2) {
+
+		half_word |= (uint16_t)data[i + 1] << 8;
+		half_word |= (uint16_t)data[i] & 0x00FF;
+
+		if ((result = mm_write(offset + i, half_word)) != mm_Ok) {
+			break;
+		}
+
+		half_word = 0;
+	}
+
+	return result;
+}
+
 /** Adds to the DF_Payload::entries array an entry about newly created file */
 static mm_Result
 add_record_to_parent(ValidityArea* va, INode* current)
@@ -33,18 +75,18 @@ add_record_to_parent(ValidityArea* va, INode* current)
 		uint32_t count = 0;
 		
 		// get the 'count' of parent folder. It will be used as an index into 'entries' array
-		if ((result = mm_read(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
+		if ((result = read_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
 			break;
 		}
 		
 		DF_Record newRecord = {.iNode = va->spr_blk.inodes_count, .fid = current->fid};
 		// write the record about a new child of current folder.
-		if ((result = mm_write((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
+		if ((result = write_data((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
 			break;
 		}
 		
 		// update the 'count' of parent folder.
-		if ((result = mm_write(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
+		if ((result = write_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
 			break;
 		}
 
@@ -71,7 +113,7 @@ update_parent_size(ValidityArea* va, INode* current)
 		}
 		// add the size of newly create folder to the size of subsequent parent folder.
 		uint16_t updated_size = parent->size + current->size;
-		if ((result = mm_write((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != mm_Ok) {
+		if ((result = write_data((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != mm_Ok) {
 			result = mm_writeErr;
 			break;
 		}
@@ -111,9 +153,9 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 		
 		// In each newly created dir, the first two records goes for itself and its parent
 		uint32_t count = 0;
-		mm_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->current_dir, sizeof(DF_Record));
-		mm_write((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record));
-		mm_write(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
+		write_data((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->current_dir, sizeof(DF_Record));
+		write_data((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record));
+		write_data(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
 	} while (0);
 
 	return result;
@@ -286,7 +328,7 @@ hlp_store_inode(ValidityArea* va, INode* inode)
 
 	do {
 		INode* inode_array = (INode*)va->spr_blk.inodes_start;
-		if ((result = mm_write((uint32_t)&inode_array[va->spr_blk.inodes_count], (uint8_t*)inode, sizeof(INode))) != mm_Ok) {
+		if ((result = write_data((uint32_t)&inode_array[va->spr_blk.inodes_count], (uint8_t*)inode, sizeof(INode))) != mm_Ok) {
 			break;
 		}
 
@@ -294,7 +336,7 @@ hlp_store_inode(ValidityArea* va, INode* inode)
 		va->spr_blk.inodes_count++;
 
 		// store the updated state of SuperBlock
-		if ((result = mm_write(va->spr_blk_addr, (uint8_t*)&va->spr_blk, sizeof(SuperBlock))) != mm_Ok) {
+		if ((result = write_data(va->spr_blk_addr, (uint8_t*)&va->spr_blk, sizeof(SuperBlock))) != mm_Ok) {
 			break;
 		}
 

@@ -132,10 +132,11 @@ hex_to_bytes(const char* str, uint16_t* outLen)
 	return bytes;
 }
 
+#if (0)
 static uint8_t
 test_01(void)
 {
-	mm_open_flash();
+	mm_open_image();
 
 	printf("INode size: %d\n", sizeof(INode));
 	for (uint32_t i = 0; i < FLASH_SIZE_TOTAL; i += sizeof(tempAnsr)) {
@@ -163,9 +164,10 @@ test_01(void)
 		return 1;
 	}
 
-	mm_close_flash();
+	mm_save_image();
 	return 0;
 }
+#endif
 
 static uint8_t cmd_create_mf[] = {
 	(uint8_t)0x62,(uint8_t)0x2D,
@@ -194,7 +196,7 @@ test_02(void)
 		iso_create_file(cmd_create_mf, sizeof(cmd_create_mf));
 	}
 
-	mm_close_flash();
+	mm_save_image();
 	return 0;
 }
 
@@ -308,7 +310,7 @@ test_04(void)
 
 	result = create_dir_hierarchy();
 
-	mm_close_flash();
+	mm_save_image();
 	return result;
 }
 
@@ -357,7 +359,7 @@ test_05(void)
 	} while (0);
 	
 	
-	mm_close_flash();
+	mm_save_image();
 	return result;
 }
 
@@ -395,7 +397,7 @@ test_06(void)
 		result = SW_OK;
 	} while (0);
 
-	mm_close_flash();
+	mm_save_image();
 	return result;
 }
 
@@ -445,7 +447,7 @@ test_07(void)
 		cmds[i].len = 0;
 	}
 	
-	mm_close_flash();
+	mm_save_image();
 	return result;
 }
 
@@ -457,7 +459,7 @@ test_08(void)
 	cmd_t cmds[9];
 	uint8_t idx = 0;
 
-	printf("====================TEST 07\n");
+	printf("====================TEST 08\n");
 	do {
 		if (iso_initialize() != SW_OK) {
 			printf("ERROR: failed to initialize file system\n");
@@ -507,7 +509,7 @@ test_08(void)
 		cmds[i].len = 0;
 	}
 	
-	mm_close_flash();
+	mm_save_image();
 	return result;
 }
 

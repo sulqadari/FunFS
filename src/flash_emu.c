@@ -4,7 +4,7 @@
 static const char* FLASH_BINARY = "FunFS.bin";
 static FILE*       aFile        = NULL;
 
-static uint8_t flash_emu[FLASH_SIZE_TOTAL];
+static uint16_t flash_emu[FLASH_SIZE_TOTAL / 2];
 static uint32_t fs_start_addr = 0x00;
 static uint32_t fs_upper_addr = 0x00;
 
@@ -33,9 +33,9 @@ uint32_t
 mm_allocate(uint16_t size)
 {
 	size = WORD_ALIGNED(size);
-	block_t* current = (block_t*)flash_emu;
+	block_t* current  = (block_t*)flash_emu;
 	block_t* previous = (block_t*)flash_emu;
-	uint32_t address = 0;
+	uint32_t address  = 0;
 	do {
 		if (current->len == 0xFFFFFFFF) { // the block is empty
 			// allocate this block
@@ -52,6 +52,7 @@ mm_allocate(uint16_t size)
 			// shift to the next block
 			current = (block_t*)((uint8_t*)current + current->len + sizeof(block_t));
 			current = (block_t*)HEX_ALIGNED((uint32_t)current);
+
 			// check if the current address doesn't exceed flash boundary
 			if ((uint32_t)current + size >= fs_upper_addr) {
 				break;
@@ -63,28 +64,36 @@ mm_allocate(uint16_t size)
 }
 
 mm_Result
-mm_write(uint32_t offset, uint8_t* data, uint16_t data_len)
+mm_write(uint32_t offset, uint16_t half_word)
 {
-	if (offset + data_len > fs_upper_addr) {
+	if (offset > fs_upper_addr) {
 		return mm_writeErr;
 	}
 
 	// address to index conversion
-	offset = offset - fs_start_addr;
-	memcpy(&flash_emu[offset], data, data_len);
+	offset = (offset - fs_start_addr) / 2;
+
+	// if (flash_emu[offset] != 0xFFFF) {
+	// 	return mm_writeErr;
+	// }
+
+	flash_emu[offset] = half_word;
+
 	return mm_Ok;
 }
 
 mm_Result
-mm_read(uint32_t offset, uint8_t* data, uint16_t data_len)
+mm_read(uint32_t offset, uint16_t* half_word)
 {
-	if (offset + data_len > fs_upper_addr) {
+	if (offset > fs_upper_addr) {
 		return mm_readErr;
 	}
 
 	// address to index conversion
-	offset = offset - fs_start_addr;
-	memcpy(data, &flash_emu[offset], data_len);
+	offset = (offset - fs_start_addr) / 2;
+
+	*half_word = flash_emu[offset];
+
 	return mm_Ok;
 }
 
@@ -93,7 +102,7 @@ mm_read(uint32_t offset, uint8_t* data, uint16_t data_len)
  * If file already exists, it will be reused.
  */
 mm_Result
-mm_open_flash(void)
+mm_open_image(void)
 {
 	// size_t bytesRead = 0;
 	mm_Result result = mm_Ok;
@@ -103,7 +112,7 @@ mm_open_flash(void)
 			break;
 		}
 
-		memset(flash_emu, 0xFF, FLASH_SIZE_TOTAL);
+		memset((uint8_t*)flash_emu, 0xFF, FLASH_SIZE_TOTAL);
   		aFile = fopen(FLASH_BINARY, "w");
 
 		if (aFile == NULL) {
@@ -117,7 +126,7 @@ mm_open_flash(void)
 }
 
 static mm_Result
-update_flash(void)
+update_image(void)
 {
 	mm_Result result = mm_Ok;
 
@@ -130,8 +139,8 @@ update_flash(void)
 		
 		rewind(aFile);
 		
-		size_t written = fwrite(flash_emu, 1, FLASH_SIZE_TOTAL, aFile);
-		if (written < FLASH_SIZE_TOTAL) {
+		size_t written = fwrite(flash_emu, 2, FLASH_SIZE_TOTAL / 2, aFile);
+		if (written < FLASH_SIZE_TOTAL / 2) {
 			fprintf(stderr, "ERROR: couldn't update %s binary file.\n", FLASH_BINARY);
 			fclose(aFile);
 			result = mm_writeErr;
@@ -144,12 +153,12 @@ update_flash(void)
 }
 
 mm_Result
-mm_close_flash(void)
+mm_save_image(void)
 {
 	mm_Result result = mm_Ok;
 
 	if (aFile != NULL) {
-		result = update_flash();
+		result = update_image();
 		fclose(aFile);
 		aFile = NULL;
 	}
