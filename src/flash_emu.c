@@ -7,48 +7,50 @@ static FILE*       aFile        = NULL;
 static uint16_t flash_emu[FLASH_SIZE_TOTAL / 2];
 static uint32_t fs_start_addr = 0x00;
 static uint32_t fs_upper_addr = 0x00;
+static uint16_t* first_page = NULL;
 
 static void
 mm_set_bounds(void)
 {
 	(void)sizeof(flash_emu);
-	fs_start_addr = (uint32_t)&flash_emu;
-	fs_upper_addr = fs_start_addr + FLASH_SIZE_TOTAL;
+	fs_start_addr = PAGE_ALIGNED((uint32_t)flash_emu);
+	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
+
+	/* To make simulator as close to hardware as possible, this function
+	   sets 'fs_start_addr' to address which is aligned to page size. This in turn has
+	   broken mm_write() and mm_read() functions because the expression below
+	   'offset = (offset - fs_start_addr) / 2;' (see in above mentioned functions)
+	   calculates offset from the beginning of the 'flash_emu' array, not from the first
+	   avaiable page-aligned address.
+	   To fix that, we take an address within 'flash_emu' pointed by the first page
+	   available for the user data. */
+	first_page = &flash_emu[(fs_start_addr - (uint32_t)flash_emu) / 2];
 }
 
 uint32_t
 mm_get_start_address(void)
 {
 	mm_set_bounds();
-	return fs_start_addr;
+	return fs_start_addr + sizeof(block_t);
 }
-
-#if defined (FEMU_USE_INDICES)
-#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(block_t)) - (uint32_t)flash_emu
-#else
-#define calculate_index(addr) (uint32_t)((uint32_t)addr + sizeof(block_t))
-#endif
 
 uint32_t
 mm_allocate(uint16_t size)
 {
 	size = WORD_ALIGNED(size);
-	block_t* current  = (block_t*)flash_emu;
-	block_t* previous = (block_t*)flash_emu;
+	block_t* current  = (block_t*)fs_start_addr;
+	block_t* previous = (block_t*)fs_start_addr;
 	uint32_t address  = 0;
 	do {
 		if (current->len == 0xFFFFFFFF) { // the block is empty
 			// allocate this block
 			current->len = size;
 
-			// set address->prev
-			current->prev = calculate_index(previous);
-			// compute actual index within flash_emu array
-			address = calculate_index(current);
+			current->prev = (uint32_t)previous + sizeof(block_t);
+			address       = (uint32_t)current  + sizeof(block_t);
 			break;
-		} else { // seek another block
+		} else { // look for an another block
 			previous = current;
-
 			// shift to the next block
 			current = (block_t*)((uint8_t*)current + current->len + sizeof(block_t));
 			current = (block_t*)HEX_ALIGNED((uint32_t)current);
@@ -77,7 +79,7 @@ mm_write(uint32_t offset, uint16_t half_word)
 	// 	return mm_writeErr;
 	// }
 
-	flash_emu[offset] = half_word;
+	first_page[offset] = half_word;
 
 	return mm_Ok;
 }
@@ -92,7 +94,7 @@ mm_read(uint32_t offset, uint16_t* half_word)
 	// address to index conversion
 	offset = (offset - fs_start_addr) / 2;
 
-	*half_word = flash_emu[offset];
+	*half_word = first_page[offset];
 
 	return mm_Ok;
 }

@@ -21,7 +21,7 @@ iso_initialize(void)
 	do {
 		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
 
-		va.spr_blk_addr = mm_get_start_address() + sizeof(block_t);
+		va.spr_blk_addr = mm_get_start_address();
 
 		// Open (or create) persistent storage for a flash memory
 		if (mm_open_image() != mm_Ok) {

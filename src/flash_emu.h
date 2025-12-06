@@ -6,12 +6,12 @@
 #include <stdlib.h>
 
 #define PAGE_SIZE   1024
-#define PAGES_TOTAL 2
+#define PAGES_TOTAL 4
 #define FLASH_SIZE_TOTAL (PAGES_TOTAL * PAGE_SIZE)
 
 #define WORD_ALIGNED(expr) (((expr) +  0x03) & 0xFFFFFFFC)  // word = 4 bytes
-#define PAGE_ALIGNED(expr) (((expr) + 0x3FF) & 0xFFFFFC00)  // page = 1024 bytes
 #define HEX_ALIGNED(expr)  (((expr) +  0x0F) & 0xFFFFFFF0)  // hex = 16 bytes
+#define PAGE_ALIGNED(expr) (((expr) + 0x3FF) & 0xFFFFFC00)  // page = 1024 bytes
 
 typedef enum {
 	mm_Ok,
