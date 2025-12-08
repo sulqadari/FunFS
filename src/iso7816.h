@@ -75,7 +75,7 @@ typedef struct {
 
 typedef struct {
 	uint32_t count;
-	DF_Record entries[256 / sizeof(DF_Record) - 1];
+	DF_Record entries[32 / sizeof(DF_Record) - 1];
 } DF_Payload;
 
 ISO_SW iso_initialize(void);

@@ -18,7 +18,7 @@
 
 
 mm_Result
-read_data(uint32_t offset, uint8_t* data, uint32_t len)
+hlp_read_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
 	mm_Result result   = mm_Ok;
 	uint16_t half_word = 0;
@@ -38,22 +38,48 @@ read_data(uint32_t offset, uint8_t* data, uint32_t len)
 }
 
 mm_Result
-write_data(uint32_t offset, uint8_t* data, uint32_t len)
+hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
 	mm_Result result   = mm_Ok;
 	uint16_t half_word = 0;
 
-	for (uint32_t i = 0; i < len; i += 2) {
+	do {
+		// 1. check if the area we're about to write into is clear or not
+		for (uint32_t i = 0; i < len; i += 2) {
+			if ((result = hlp_read_data(offset + i, (uint8_t*)&half_word, 2)) != mm_Ok) {
+				break;
+			}
+			if (half_word != 0xFFFF) {
+				break;
+			}
+		}
 
-		half_word |= (uint16_t)data[i + 1] << 8;
-		half_word |= (uint16_t)data[i] & 0x00FF;
-
-		if ((result = mm_write(offset + i, half_word)) != mm_Ok) {
+		if (result != mm_Ok){
 			break;
 		}
 
-		half_word = 0;
-	}
+		// 2. if even a one word isn't clear, then copy the entire page into RAM,
+		//    update it, and then clear and update it.
+		if (half_word != 0xFFFF) {
+			// uint32_t page_start = offset & 0xFFFFFC00;
+			uint32_t page_start = offset & ~(PAGE_SIZE - 1);
+			result = mm_copy_page(page_start, offset, data, len);
+
+		  // 3. else - just write data starting from the given offset.
+		} else {
+			half_word = 0;
+			for (uint32_t i = 0; i < len; i += 2) {
+				half_word |= (uint16_t)data[i + 1] << 8;
+				half_word |= (uint16_t)data[i] & 0x00FF;
+
+				if ((result = mm_write(offset + i, half_word)) != mm_Ok) {
+					break;
+				}
+
+				half_word = 0;
+			}
+		}
+	} while (0);
 
 	return result;
 }
@@ -75,18 +101,18 @@ add_record_to_parent(ValidityArea* va, INode* current)
 		uint32_t count = 0;
 		
 		// get the 'count' of parent folder. It will be used as an index into 'entries' array
-		if ((result = read_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
+		if ((result = hlp_read_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
 			break;
 		}
 		
 		DF_Record newRecord = {.iNode = va->spr_blk.inodes_count, .fid = current->fid};
 		// write the record about a new child of current folder.
-		if ((result = write_data((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
+		if ((result = hlp_write_data((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
 			break;
 		}
 		
 		// update the 'count' of parent folder.
-		if ((result = write_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
+		if ((result = hlp_write_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
 			break;
 		}
 
@@ -113,7 +139,7 @@ update_parent_size(ValidityArea* va, INode* current)
 		}
 		// add the size of newly create folder to the size of subsequent parent folder.
 		uint16_t updated_size = parent->size + current->size;
-		if ((result = write_data((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != mm_Ok) {
+		if ((result = hlp_write_data((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != mm_Ok) {
 			result = mm_writeErr;
 			break;
 		}
@@ -153,9 +179,9 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 		
 		// In each newly created dir, the first two records goes for itself and its parent
 		uint32_t count = 0;
-		write_data((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->current_dir, sizeof(DF_Record));
-		write_data((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record));
-		write_data(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
+		hlp_write_data((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->current_dir, sizeof(DF_Record));
+		hlp_write_data((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record));
+		hlp_write_data(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
 	} while (0);
 
 	return result;
@@ -328,7 +354,7 @@ hlp_store_inode(ValidityArea* va, INode* inode)
 
 	do {
 		INode* inode_array = (INode*)va->spr_blk.inodes_start;
-		if ((result = write_data((uint32_t)&inode_array[va->spr_blk.inodes_count], (uint8_t*)inode, sizeof(INode))) != mm_Ok) {
+		if ((result = hlp_write_data((uint32_t)&inode_array[va->spr_blk.inodes_count], (uint8_t*)inode, sizeof(INode))) != mm_Ok) {
 			break;
 		}
 
@@ -336,7 +362,7 @@ hlp_store_inode(ValidityArea* va, INode* inode)
 		va->spr_blk.inodes_count++;
 
 		// store the updated state of SuperBlock
-		if ((result = write_data(va->spr_blk_addr, (uint8_t*)&va->spr_blk, sizeof(SuperBlock))) != mm_Ok) {
+		if ((result = hlp_write_data(va->spr_blk_addr, (uint8_t*)&va->spr_blk, sizeof(SuperBlock))) != mm_Ok) {
 			break;
 		}
 

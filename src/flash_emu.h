@@ -5,13 +5,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define PAGE_SIZE   1024
-#define PAGES_TOTAL 4
+#define PAGE_SIZE   64
+#define PAGES_TOTAL 64
 #define FLASH_SIZE_TOTAL (PAGES_TOTAL * PAGE_SIZE)
 
-#define WORD_ALIGNED(expr) (((expr) +  0x03) & 0xFFFFFFFC)  // word = 4 bytes
-#define HEX_ALIGNED(expr)  (((expr) +  0x0F) & 0xFFFFFFF0)  // hex = 16 bytes
-#define PAGE_ALIGNED(expr) (((expr) + 0x3FF) & 0xFFFFFC00)  // page = 1024 bytes
+#define WORD_CEIL(expr) (((expr) +  0x03) & 0xFFFFFFFC)  // word = 4 bytes
+#define HEX_CEIL(expr)  (((expr) +  0x0F) & 0xFFFFFFF0)  // hex = 16 bytes
+#define PAGE_CEIL(expr) (((expr) + 0x3FF) & 0xFFFFFC00)  // page = 1024 bytes
 
 typedef enum {
 	mm_Ok,
@@ -38,5 +38,6 @@ mm_Result mm_read (uint32_t offset, uint16_t* half_word);
 
 mm_Result mm_open_image(void);
 mm_Result mm_save_image(void);
+mm_Result mm_copy_page(uint32_t page_addr, uint32_t data_addr, uint8_t* data, uint32_t len);
 
 #endif /* FUNFS_FLASH_EMU_H */

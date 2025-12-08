@@ -9,11 +9,13 @@ static uint32_t fs_start_addr = 0x00;
 static uint32_t fs_upper_addr = 0x00;
 static uint16_t* first_page = NULL;
 
+static uint16_t ram_buff[PAGE_SIZE / 2];
+
 static void
 mm_set_bounds(void)
 {
 	(void)sizeof(flash_emu);
-	fs_start_addr = PAGE_ALIGNED((uint32_t)flash_emu);
+	fs_start_addr = PAGE_CEIL((uint32_t)flash_emu);
 	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
 
 	/* To make simulator as close to hardware as possible, this function
@@ -37,7 +39,7 @@ mm_get_start_address(void)
 uint32_t
 mm_allocate(uint16_t size)
 {
-	size = WORD_ALIGNED(size);
+	size = WORD_CEIL(size);
 	block_t* current  = (block_t*)fs_start_addr;
 	block_t* previous = (block_t*)fs_start_addr;
 	uint32_t address  = 0;
@@ -53,7 +55,7 @@ mm_allocate(uint16_t size)
 			previous = current;
 			// shift to the next block
 			current = (block_t*)((uint8_t*)current + current->len + sizeof(block_t));
-			current = (block_t*)HEX_ALIGNED((uint32_t)current);
+			current = (block_t*)HEX_CEIL((uint32_t)current);
 
 			// check if the current address doesn't exceed flash boundary
 			if ((uint32_t)current + size >= fs_upper_addr) {
@@ -75,9 +77,9 @@ mm_write(uint32_t offset, uint16_t half_word)
 	// address to index conversion
 	offset = (offset - fs_start_addr) / 2;
 
-	// if (flash_emu[offset] != 0xFFFF) {
-	// 	return mm_writeErr;
-	// }
+	if (flash_emu[offset] != 0xFFFF) {
+		return mm_writeErr;
+	}
 
 	first_page[offset] = half_word;
 
@@ -164,6 +166,72 @@ mm_save_image(void)
 		fclose(aFile);
 		aFile = NULL;
 	}
+
+	return result;
+}
+
+static mm_Result
+clear_page(uint32_t address)
+{
+	if (address > fs_upper_addr) {
+		return mm_writeErr;
+	}
+
+	// address to index conversion
+	address = (address - fs_start_addr) / 2;
+
+	for (uint16_t i = 0; i < PAGE_SIZE / 2; ++i) {
+		first_page[address + i] = 0xFFFF;
+	}
+
+	return mm_Ok;
+}
+
+mm_Result
+mm_copy_page(uint32_t page_addr, uint32_t data_addr, uint8_t* data, uint32_t len)
+{
+	mm_Result result = mm_Ok;
+	uint16_t half_word = 0;
+	uint16_t ram_buff_offset = (data_addr - page_addr) / 2;
+
+	memset(ram_buff, 0xFF, PAGE_SIZE);
+	do {
+		// 1. copy all data from flash to ram
+		for (uint32_t src_idx = 0, dst_idx = 0; src_idx < PAGE_SIZE; src_idx += 2, ++dst_idx) {
+			if ((result = mm_read(page_addr + src_idx, &half_word)) != mm_Ok) {
+				break;
+			}
+			ram_buff[dst_idx] = half_word;
+		}
+		
+		if (result != mm_Ok){
+			break;
+		}
+		
+		half_word = 0;
+
+		// 2. update fields in RAM
+		for (uint16_t src_idx = 0; src_idx < len; src_idx += 2, ++ram_buff_offset) {
+			half_word |= (uint16_t)data[src_idx + 1] << 8;
+			half_word |= (uint16_t)data[src_idx] & 0x00FF;
+
+			ram_buff[ram_buff_offset] = half_word;
+			half_word = 0;
+		}
+
+		// 3. clear page
+		result = clear_page(page_addr);
+		if (result != mm_Ok){
+			break;
+		}
+
+		// 4. update entire page
+		for (uint32_t dest_idx = 0, src_idx = 0; dest_idx < PAGE_SIZE; dest_idx += 2, ++src_idx) {
+			if ((result = mm_write(page_addr + dest_idx, ram_buff[src_idx])) != mm_Ok) {
+				break;
+			}
+		}
+	} while (0);
 
 	return result;
 }
