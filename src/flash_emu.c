@@ -14,7 +14,6 @@ static uint16_t ram_buff[PAGE_SIZE / 2];
 static void
 mm_set_bounds(void)
 {
-	(void)sizeof(flash_emu);
 	fs_start_addr = PAGE_CEIL((uint32_t)flash_emu);
 	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
 
@@ -70,6 +69,7 @@ mm_allocate(uint16_t size)
 mm_Result
 mm_write(uint32_t offset, uint16_t half_word)
 {
+	uint32_t temp = offset;
 	if (offset > fs_upper_addr) {
 		return mm_writeErr;
 	}
@@ -78,6 +78,12 @@ mm_write(uint32_t offset, uint16_t half_word)
 	offset = (offset - fs_start_addr) / 2;
 
 	if (flash_emu[offset] != 0xFFFF) {
+		printf(
+			"\n\t\t\t****HardFault****\n"
+			"Attempt to write at address %08X (emu_flash[%d])"
+			"which isn't blank and contains %08X value\n\n",
+			temp, offset, flash_emu[offset]
+		);
 		return mm_writeErr;
 	}
 
@@ -187,14 +193,25 @@ clear_page(uint32_t address)
 	return mm_Ok;
 }
 
+void mm_rewrite_page(const uint32_t page_addr, const uint32_t data_addr, const uint32_t len);
+
+/**
+ * Updates a data field in a given page.
+ * Because we can only write into 'cleared' memory, and clearing encompases
+ * the whole page, this function copies the given page into RAM buffer, makes
+ * updates at the given offset and then writes updated page into the flash. 
+ * Targeted page in flash is cleared beforehand, natch.
+ */
 mm_Result
-mm_copy_page(uint32_t page_addr, uint32_t data_addr, uint8_t* data, uint32_t len)
+mm_copy_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, const uint32_t len)
 {
-	mm_Result result = mm_Ok;
-	uint16_t half_word = 0;
-	uint16_t ram_buff_offset = (data_addr - page_addr) / 2;
+	mm_Result result         = mm_Ok;
+	uint16_t half_word       = 0;
 
 	memset(ram_buff, 0xFF, PAGE_SIZE);
+
+	mm_rewrite_page(page_addr, data_addr, len);
+
 	do {
 		// 1. copy all data from flash to ram
 		for (uint32_t src_idx = 0, dst_idx = 0; src_idx < PAGE_SIZE; src_idx += 2, ++dst_idx) {
@@ -204,18 +221,18 @@ mm_copy_page(uint32_t page_addr, uint32_t data_addr, uint8_t* data, uint32_t len
 			ram_buff[dst_idx] = half_word;
 		}
 		
-		if (result != mm_Ok){
+		if (result != mm_Ok) {
 			break;
 		}
 		
 		half_word = 0;
 
 		// 2. update fields in RAM
-		for (uint16_t src_idx = 0; src_idx < len; src_idx += 2, ++ram_buff_offset) {
+		for (uint16_t src_idx = 0, dst_idx = (data_addr - page_addr) / 2; src_idx < len; src_idx += 2, ++dst_idx) {
 			half_word |= (uint16_t)data[src_idx + 1] << 8;
 			half_word |= (uint16_t)data[src_idx] & 0x00FF;
 
-			ram_buff[ram_buff_offset] = half_word;
+			ram_buff[dst_idx] = half_word;
 			half_word = 0;
 		}
 
@@ -234,4 +251,20 @@ mm_copy_page(uint32_t page_addr, uint32_t data_addr, uint8_t* data, uint32_t len
 	} while (0);
 
 	return result;
+}
+
+void
+mm_rewrite_page(const uint32_t page_addr, const uint32_t data_addr, const uint32_t len)
+{
+	uint32_t data_upper_bound = data_addr + len;
+	uint32_t belongs_to_page = PAGE_ALIGN(data_upper_bound);
+	if (page_addr != belongs_to_page) {
+		printf(
+			"WARNING: data spawns over pages.\n"
+			"PAGE 1:   %08X\n"
+			"PAGE 2:   %08X\n"
+			"DATA LEN: %d\n",
+			page_addr, belongs_to_page, len
+		);
+	}
 }

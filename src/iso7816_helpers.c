@@ -58,11 +58,9 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 			break;
 		}
 
-		// 2. if even a one word isn't clear, then copy the entire page into RAM,
-		//    update it, and then clear and update it.
+		// 2. If even a word isn't clear, then call mm_copy_page()
 		if (half_word != 0xFFFF) {
-			// uint32_t page_start = offset & 0xFFFFFC00;
-			uint32_t page_start = offset & ~(PAGE_SIZE - 1);
+			uint32_t page_start = PAGE_ALIGN(offset);
 			result = mm_copy_page(page_start, offset, data, len);
 
 		  // 3. else - just write data starting from the given offset.
