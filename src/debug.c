@@ -63,12 +63,14 @@ dbg_print_va(ValidityArea* va)
 }
 
 void
-dbg_print_cmd_name(const char* name)
+dbg_print_hex(uint8_t* data, uint32_t len)
 {
-	printf("**********************%s**********************\n\n", name);
-}
-
-void dbg_print_value(uint32_t value, const char* name)
-{
-	printf("%s: %d\n", name, value);
+	for (uint32_t i = 0; i < len; ++i) {
+		if ((i != 0) && ((i % 16) == 0)) {
+			printf("\n");
+		}
+	
+		printf("%02x ", data[i]);
+	}
+	printf("\n");
 }

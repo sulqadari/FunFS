@@ -54,6 +54,7 @@ typedef struct {
 	uint32_t inodes_count;
 	uint32_t inodes_capacity;
 	uint32_t inodes_start;
+	uint8_t array[128];
 } SuperBlock;
 
 /** Used as entry in dedicated file's data block.
@@ -74,8 +75,8 @@ typedef struct {
 } ValidityArea;
 
 typedef struct {
-	uint32_t count;
-	DF_Record entries[32 / sizeof(DF_Record) - 1];
+	uint32_t children_count;
+	DF_Record children_list[256 / sizeof(DF_Record) - 1];
 } DF_Payload;
 
 ISO_SW iso_initialize(void);

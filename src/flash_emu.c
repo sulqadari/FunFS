@@ -9,7 +9,7 @@ static uint32_t fs_start_addr = 0x00;
 static uint32_t fs_upper_addr = 0x00;
 static uint16_t* first_page = NULL;
 
-static uint16_t ram_buff[PAGE_SIZE / 2];
+static uint16_t page_ram[PAGE_SIZE / 2];
 
 static void
 mm_set_bounds(void)
@@ -26,6 +26,22 @@ mm_set_bounds(void)
 	   To fix that, we take an address within 'flash_emu' pointed by the first page
 	   available for the user data. */
 	first_page = &flash_emu[(fs_start_addr - (uint32_t)flash_emu) / 2];
+
+	DBG_PRINT_VARG(
+		"\nstart address:   %08X\n"
+		"upper bound:     %08X\n"
+		"pages total:     %d\n"
+		"page size:       %d\n"
+		"flash_emu size:  %d\n"
+		"page_ram size:   %d\n\n",
+
+		fs_start_addr,
+		fs_upper_addr,
+		PAGES_TOTAL,
+		PAGE_SIZE,
+		sizeof(flash_emu),
+		sizeof(page_ram)
+	)
 }
 
 uint32_t
@@ -80,10 +96,14 @@ mm_write(uint32_t offset, uint16_t half_word)
 	if (flash_emu[offset] != 0xFFFF) {
 		printf(
 			"\n\t\t\t****HardFault****\n"
-			"Attempt to write at address %08X (emu_flash[%d])"
-			"which isn't blank and contains %08X value\n\n",
+			"Attempt to write at address '%08X' (emu_flash[%d])\n"
+			"which isn't blank and contains '%08X' value\n\n",
 			temp, offset, flash_emu[offset]
 		);
+
+		DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
+
+		exit(1);
 		return mm_writeErr;
 	}
 
@@ -158,7 +178,7 @@ update_image(void)
 		}
 	
 	} while (0);
-
+	DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
 	return result;
 }
 
@@ -208,7 +228,7 @@ mm_copy_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, 
 	mm_Result result         = mm_Ok;
 	uint16_t half_word       = 0;
 
-	memset(ram_buff, 0xFF, PAGE_SIZE);
+	memset(page_ram, 0xFF, PAGE_SIZE);
 
 	mm_rewrite_page(page_addr, data_addr, len);
 
@@ -218,7 +238,7 @@ mm_copy_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, 
 			if ((result = mm_read(page_addr + src_idx, &half_word)) != mm_Ok) {
 				break;
 			}
-			ram_buff[dst_idx] = half_word;
+			page_ram[dst_idx] = half_word;
 		}
 		
 		if (result != mm_Ok) {
@@ -232,7 +252,7 @@ mm_copy_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, 
 			half_word |= (uint16_t)data[src_idx + 1] << 8;
 			half_word |= (uint16_t)data[src_idx] & 0x00FF;
 
-			ram_buff[dst_idx] = half_word;
+			page_ram[dst_idx] = half_word;
 			half_word = 0;
 		}
 
@@ -244,7 +264,7 @@ mm_copy_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, 
 
 		// 4. update entire page
 		for (uint32_t dest_idx = 0, src_idx = 0; dest_idx < PAGE_SIZE; dest_idx += 2, ++src_idx) {
-			if ((result = mm_write(page_addr + dest_idx, ram_buff[src_idx])) != mm_Ok) {
+			if ((result = mm_write(page_addr + dest_idx, page_ram[src_idx])) != mm_Ok) {
 				break;
 			}
 		}

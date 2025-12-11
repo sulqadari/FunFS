@@ -20,6 +20,8 @@
 mm_Result
 hlp_read_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
+	// DBG_PRINT_VARG("hlp_read_data(offset: %04X)\n", offset)
+
 	mm_Result result   = mm_Ok;
 	uint16_t half_word = 0;
 
@@ -40,6 +42,7 @@ hlp_read_data(uint32_t offset, uint8_t* data, uint32_t len)
 mm_Result
 hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
+	// DBG_PRINT_VARG("hlp_write_data(offset: %04X)\n", offset)
 	mm_Result result   = mm_Ok;
 	uint16_t half_word = 0;
 
@@ -99,18 +102,18 @@ add_record_to_parent(ValidityArea* va, INode* current)
 		uint32_t count = 0;
 		
 		// get the 'count' of parent folder. It will be used as an index into 'entries' array
-		if ((result = hlp_read_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
+		if ((result = hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
 			break;
 		}
 		
 		DF_Record newRecord = {.iNode = va->spr_blk.inodes_count, .fid = current->fid};
 		// write the record about a new child of current folder.
-		if ((result = hlp_write_data((uint32_t)&df_entries(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
+		if ((result = hlp_write_data((uint32_t)&df_children_list(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
 			break;
 		}
 		
 		// update the 'count' of parent folder.
-		if ((result = hlp_write_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
+		if ((result = hlp_write_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
 			break;
 		}
 
@@ -143,8 +146,8 @@ update_parent_size(ValidityArea* va, INode* current)
 		}
 
 		// get the inode index of subsequent parent.
-		idx = df_entries(parent)[1].iNode;
-		fid = df_entries(parent)[1].fid;
+		idx = df_children_list(parent)[1].iNode;
+		fid = df_children_list(parent)[1].fid;
 
 	} while (fid != 0x00); // fid=FFFF means we've reached the end of file hierarchy
 
@@ -177,9 +180,9 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 		
 		// In each newly created dir, the first two records goes for itself and its parent
 		uint32_t count = 0;
-		hlp_write_data((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->current_dir, sizeof(DF_Record));
-		hlp_write_data((uint32_t)&df_entries(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record));
-		hlp_write_data(df_data(new_df_node)->count, (uint8_t*)&count,  sizeof(uint32_t));
+		hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->current_dir, sizeof(DF_Record));
+		hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record));
+		hlp_write_data(df_children_count(new_df_node), (uint8_t*)&count,  sizeof(uint32_t));
 	} while (0);
 
 	return result;
@@ -327,6 +330,10 @@ hlp_allocate_data_block(ValidityArea* va, INode* inode)
 		} else {
 			break;
 		}
+
+		if (result != mm_Ok)
+			break;
+		
 		// If this is the MF, then there is no parent dir at all. Bail out.
 		if (inode->fid == FID_MASTER_FILE) {
 			break;

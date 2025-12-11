@@ -5,19 +5,6 @@
 uint8_t tempData[] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
 uint8_t tempAnsr[16];
 
-static void
-print_hex(uint8_t* data, uint32_t len)
-{
-	for (uint32_t i = 0; i < len; ++i) {
-		if ((i != 0) && ((i % 16) == 0)) {
-			printf("\n");
-		}
-	
-		printf("%02x ", data[i]);
-	}
-	printf("\n");
-}
-
 static char*
 remove_spaces(const char* str)
 {
@@ -133,6 +120,7 @@ hex_to_bytes(const char* str, uint16_t* outLen)
 }
 
 #if (0)
+
 static uint8_t
 test_01(void)
 {

@@ -4,10 +4,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "debug.h"
 
-#define PAGE_SIZE   128
+#define PAGE_SIZE   1024
 #define PAGES_TOTAL 64
 #define FLASH_SIZE_TOTAL (PAGES_TOTAL * PAGE_SIZE)
+#define INODE_TABLE_SIZE (PAGE_SIZE * 7)
 
 #define WORD_CEIL(expr) (((expr) +  0x03) & 0xFFFFFFFC)  // word = 4 bytes
 #define HEX_CEIL(expr)  (((expr) +  0x0F) & 0xFFFFFFF0)  // hex = 16 bytes

@@ -13,6 +13,9 @@ option(USE_SANIT "Apply memory leak and boundary violation control" NO)
 
 if (USE_DEBUG)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -Wall -O0 -g3")
+	add_compile_definitions(
+		FUNFS_DBG_MODE
+	)
 else()
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -Wall -Ofast")
 endif()

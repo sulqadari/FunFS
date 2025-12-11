@@ -9,15 +9,21 @@ static ValidityArea va;
 ISO_SW
 iso_initialize(void)
 {
-	dbg_print_cmd_name("INITIALIZE");
+	DBG_PRINT_VARG("\ncall: %s\n\n", "iso_initialize")
+	DBG_PRINT_VARG(
+		"VA         size: %d\n"
+		"SuperBlock size: %d\n"
+		"DF_Record  size: %d\n"
+		"DF_Payload size: %d\n"
+		"Inode      size: %d\n",
+		sizeof(ValidityArea),
+		sizeof(SuperBlock),
+		sizeof(DF_Record),
+		sizeof(DF_Payload),
+		sizeof(INode)
+	)
+	
 	ISO_SW result = SW_MEMORY_FAILURE;
-	
-	dbg_print_value(sizeof(ValidityArea), "ValidityArea");
-	dbg_print_value(sizeof(SuperBlock),   "SuperBlock  ");
-	dbg_print_value(sizeof(DF_Record),    "DF_Record   ");
-	dbg_print_value(sizeof(DF_Payload),   "DF_Payload  ");
-	dbg_print_value(sizeof(INode),        "INode       ");
-	
 	do {
 		memset((uint8_t*)&va, 0x00, sizeof(ValidityArea));
 
@@ -46,7 +52,7 @@ iso_initialize(void)
 			break;
 		}
 
-		uint32_t size = PAGE_SIZE * 7;	// allocate space for the Inodes table.
+		uint32_t size = INODE_TABLE_SIZE;	// allocate space for the Inodes table.
 		if ((va.spr_blk.inodes_start = mm_allocate(size)) == 0) {
 			break;
 		}
@@ -61,13 +67,21 @@ iso_initialize(void)
 		result = SW_OK;
 	} while (0);
 
+	DBG_PRINT_VARG(
+		"\nSuperBlock\n"
+		"inodes_start:      %04X\n"
+		"super block start: %04X\n\n",
+		va.spr_blk.inodes_start,
+		va.spr_blk_addr
+	)
+
 	return result;
 }
 
 ISO_SW
 iso_create_file(uint8_t* data, uint32_t data_len)
 {
-	dbg_print_cmd_name("CREATE FILE");
+	DBG_PRINT_VARG("\ncall: %s", "iso_create_file(")
 
 	ISO_SW result = SW_UNKNOWN;
 	INode inode;
@@ -82,6 +96,9 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 		if (hlp_parse_params(&inode, data, data_len) != mm_Ok) {
 			break;
 		}
+		
+		DBG_PRINT_VARG("%04X)\n\n", inode.fid)
+
 		if (hlp_allocate_data_block(&va, &inode) != mm_Ok) {
 			break;
 		}
@@ -92,8 +109,8 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 		result = SW_OK;
 	} while (0);
 
-	dbg_print_super_block(&va);
-	dbg_print_inode(&inode);
+	DBG_PRINT_SUPERBLOCK(&va);	
+	DBG_PRINT_INODE(&inode);
 	
 	return result;
 }
@@ -101,7 +118,7 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 ISO_SW
 iso_select_by_name(const uint16_t fid)
 {
-	dbg_print_cmd_name("SELECT BY NAME");
+	DBG_PRINT_VARG("\ncall: %s(%04X)\n\n", "iso_select_by_name", fid)
 	ISO_SW result = SW_UNKNOWN;
 
 	uint16_t idx       = va.current_dir.iNode;
@@ -120,7 +137,7 @@ iso_select_by_name(const uint16_t fid)
 
 		uint32_t count = 0;
 		// get the 'count' of files in current folder.
-		if (hlp_read_data(df_data(currentDf)->count, (uint8_t*)&count,  sizeof(uint32_t)) != mm_Ok) {
+		if (hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t)) != mm_Ok) {
 			break;
 		}
 
@@ -129,7 +146,7 @@ iso_select_by_name(const uint16_t fid)
 
 		for (i = 0; i < count; ++i) {
 			// read from current DF's payload region an info about subsequent child. 
-			if (hlp_read_data((uint32_t)&df_entries(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != mm_Ok) {
+			if (hlp_read_data((uint32_t)&df_children_list(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != mm_Ok) {
 				break;
 			}
 
@@ -144,8 +161,8 @@ iso_select_by_name(const uint16_t fid)
 				}
 
 				// Otherwise, update the 'parent DF/child DF' values.
-				uint16_t parent_idx = df_entries(currentDf)[1].iNode;
-				uint16_t parent_fid = df_entries(currentDf)[1].fid;
+				uint16_t parent_idx = df_children_list(currentDf)[1].iNode;
+				uint16_t parent_fid = df_children_list(currentDf)[1].fid;
 
 				hlp_va_set_parent_df(&va, parent_fid, parent_idx); // Current dir becomes 'parent'
 				hlp_va_set_current_df(&va, next.fid, next.iNode);  // the one we're looking for becomes 'current'
@@ -160,7 +177,7 @@ iso_select_by_name(const uint16_t fid)
 		result = SW_OK;
 	} while (0);
 
-	dbg_print_va(&va);
+	DBG_PRINT_VA(&va);
 
 	return result;
 }
@@ -168,7 +185,8 @@ iso_select_by_name(const uint16_t fid)
 ISO_SW
 iso_select_by_path(uint8_t* data, uint32_t data_len)
 {
-	dbg_print_cmd_name("SELECT BY PATH");
+	DBG_PRINT_VARG("call: %s\n", "iso_select_by_path")
+
 	ISO_SW result = SW_UNKNOWN;
 	uint8_t* ptr = data;
 	uint16_t fid;
