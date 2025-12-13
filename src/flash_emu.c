@@ -4,8 +4,8 @@
 static const char* FLASH_BINARY = "FunFS.bin";
 static FILE*       aFile        = NULL;
 
-// static uint16_t flash_emu[FLASH_SIZE_TOTAL / 2];
-uint16_t* flash_emu = NULL;
+static uint16_t flash_emu[FLASH_SIZE_TOTAL / 2];
+// uint16_t* flash_emu = NULL;
 static uint32_t fs_start_addr = 0x00;
 static uint32_t fs_upper_addr = 0x00;
 static uint16_t* first_page = NULL;
@@ -16,11 +16,11 @@ static uint32_t available_memory = 0;
 static void
 mm_set_bounds(void)
 {
-	flash_emu = malloc(FLASH_SIZE_TOTAL);
-	if (flash_emu == NULL) {
-		printf("FAILURE: can't allocate memory for the flash_emu array\n");
-		exit(1);
-	}
+	// flash_emu = malloc(FLASH_SIZE_TOTAL);
+	// if (flash_emu == NULL) {
+	// 	printf("FAILURE: can't allocate memory for the flash_emu array\n");
+	// 	exit(1);
+	// }
 
 	fs_start_addr = PAGE_CEIL((uint32_t)flash_emu);
 	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
@@ -215,7 +215,7 @@ mm_save_image(void)
 		aFile = NULL;
 	}
 	
-	free(flash_emu);
+	// free(flash_emu);
 
 	return result;
 }
@@ -294,7 +294,7 @@ rewrite_next_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* d
 }
 
 mm_Result
-mm_rewrite_page(const uint32_t curr_page, const uint32_t data_start_addr, uint8_t* data, const uint32_t len)
+mm_rewrite_page(uint32_t curr_page, uint32_t data_start_addr, uint8_t* data, const uint32_t len)
 {
 	mm_Result result = mm_Ok;
 	uint32_t data_end_addr = data_start_addr + len;
@@ -306,8 +306,10 @@ mm_rewrite_page(const uint32_t curr_page, const uint32_t data_start_addr, uint8_
 	} else {
 		uint32_t new_len = data_start_addr - PAGE_CEIL(curr_page);
 		rewrite_next_page(curr_page, data_start_addr, data_ptr, new_len);
+		curr_page = PAGE_CEIL(curr_page + 1);
 		data_ptr += new_len;
 		new_len = len - new_len;
+		data_start_addr += new_len;
 		rewrite_next_page(curr_page, data_start_addr, data_ptr, new_len);
 	}
 

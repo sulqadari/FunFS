@@ -173,7 +173,7 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 		new_df_node->size = sizeof(DF_Payload);
 		// allocate a data block for the newly created DF
 		if ((new_df_node->data = mm_allocate(new_df_node->size)) == 0x00) {
-			result = SW_NOT_ENOUGH_MEMORY_IN_FILE;
+			result = SW_MEMORY_FULL;
 			break;
 		}
 
@@ -208,7 +208,7 @@ data_block_for_ef(ValidityArea* va, INode* new_ef_node)
 	do {
 		// allocate a data block for the newly created DF
 		if ((new_ef_node->data = mm_allocate(new_ef_node->size)) == 0x00) {
-			result = SW_MEMORY_FAILURE;
+			result = SW_MEMORY_FULL;
 			break;
 		}
 		

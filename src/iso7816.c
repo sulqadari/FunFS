@@ -13,12 +13,12 @@ iso_initialize(void)
 	DBG_PRINT_VARG(
 		"VA                     size: %d bytes\n"
 		"SuperBlock             size: %d bytes\n"
-		"Max number of entries in DF: %d 'DF_Record's\n"
-		"Inode                  size: %d bytes\n",
+		"Inode                  size: %d bytes\n"
+		"Max number of entries in DF: %d 'DF_Record's\n",
 		sizeof(ValidityArea),
 		sizeof(SuperBlock),
-		sizeof(DF_Payload) / sizeof(DF_Record) - 1,
-		sizeof(INode)
+		sizeof(INode),
+		sizeof(DF_Payload) / sizeof(DF_Record) - 1
 	)
 	
 	ISO_SW result = SW_MEMORY_FAILURE;
@@ -32,7 +32,7 @@ iso_initialize(void)
 			break;
 		}
 		// Read the 'Super Block' and find out has the file system been initialized previously or not
-		if (hlp_read_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != SW_OK) {
+		if ((result = hlp_read_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock))) != SW_OK) {
 			break;
 		}
 
@@ -45,28 +45,24 @@ iso_initialize(void)
 			break;
 		}
 
+		result = SW_MEMORY_FULL;
 		// OTHERWISE: this is the very first run: no MF, no file system, no nothing.
 		if ((va.spr_blk_addr = mm_allocate(sizeof(SuperBlock))) == 0) { // allocate space for the SuperBlock
 			break;
 		}
-
-		DBG_SET_AVAIL_MEMORY(sizeof(SuperBlock))
 
 		uint32_t inode_table_size = INODE_TABLE_SIZE;	// allocate 10% of available memory for the Inodes table.
 		if ((va.spr_blk.inodes_start = mm_allocate(inode_table_size)) == 0) {
 			break;
 		}
 
-		DBG_SET_AVAIL_MEMORY(inode_table_size)
+		DBG_SET_AVAIL_MEMORY(inode_table_size + sizeof(SuperBlock))
 
 		va.spr_blk.magic           = 0xCAFEBABE;
 		va.spr_blk.inodes_count    = 0x00;
 		va.spr_blk.inodes_capacity = inode_table_size / sizeof(INode);	// 1024 / 64 = 96
-		if (hlp_write_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != SW_OK) { // store the state of SuperBlock
-			break;
-		}
-
-		result = SW_OK;
+		result = hlp_write_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock));
+			
 	} while (0);
 
 	DBG_PRINT_VARG(

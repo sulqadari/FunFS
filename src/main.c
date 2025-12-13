@@ -529,7 +529,7 @@ test_09(void)
 
 		cmds[idx].cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
 		cmds[idx++].len = len;
-		cmds[idx].cmd = hex_to_bytes("6217 8302 3F01 8202 0100 8002 0100 8A01 01 8C06 6BFFFFFF1111", &len);
+		cmds[idx].cmd = hex_to_bytes("6217 8302 3F01 8202 0100 8002 0014 8A01 01 8C06 6BFFFFFF1111", &len);
 		cmds[idx++].len = len;
 		
 		cmds[idx].cmd = hex_to_bytes("3F00 3F01", &len);
@@ -581,8 +581,8 @@ main(int argc, char* argv[])
 		// if (test_05() != SW_OK) break;
 		// if (test_06() != SW_OK) break;
 		// if (test_07() != SW_OK) break;
-		// if (test_08() != SW_OK) break;
-		if (test_09() != SW_OK) break;
+		if (test_08() != SW_OK) break;
+		// if (test_09() != SW_OK) break;
 		printf("DONE!\n");
 	} while (0);
 
