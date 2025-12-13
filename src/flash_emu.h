@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include "debug.h"
 
-#define PAGE_SIZE   1024
+#define PAGE_SIZE   2048
 #define PAGES_TOTAL 64
 #define FLASH_SIZE_TOTAL (PAGES_TOTAL * PAGE_SIZE)
 #define INODE_TABLE_SIZE ((FLASH_SIZE_TOTAL * 50) / 100)

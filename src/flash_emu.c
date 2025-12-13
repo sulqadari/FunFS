@@ -5,7 +5,6 @@ static const char* FLASH_BINARY = "FunFS.bin";
 static FILE*       aFile        = NULL;
 
 static uint16_t flash_emu[FLASH_SIZE_TOTAL / 2];
-// uint16_t* flash_emu = NULL;
 static uint32_t fs_start_addr = 0x00;
 static uint32_t fs_upper_addr = 0x00;
 static uint16_t* first_page = NULL;
@@ -13,26 +12,22 @@ static uint16_t* first_page = NULL;
 static uint16_t page_ram[PAGE_SIZE / 2];
 static uint32_t available_memory = 0;
 
+/** Defines memory area which is available for the user space.
+ * 
+ * To make simulator as close to hardware as possible, this function
+ * sets 'fs_start_addr' to address which is aligned up to the nearest page. But this in turn has
+ * broken mm_write() and mm_read() functions because the expression below
+ * 'offset = (offset - fs_start_addr) / 2; (see in above mentioned functions)'
+ * calculates offset from the beginning of the 'flash_emu' array, not from the first
+ * avaiable page-aligned address.
+ * To fix that, we take an address within 'flash_emu' pointed by the first page
+ * available for the user data. */
 static void
 mm_set_bounds(void)
 {
-	// flash_emu = malloc(FLASH_SIZE_TOTAL);
-	// if (flash_emu == NULL) {
-	// 	printf("FAILURE: can't allocate memory for the flash_emu array\n");
-	// 	exit(1);
-	// }
-
 	fs_start_addr = PAGE_CEIL((uint32_t)flash_emu);
 	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
 
-	/* To make simulator as close to hardware as possible, this function
-	   sets 'fs_start_addr' to address which is aligned up to the nearest page. This in turn has
-	   broken mm_write() and mm_read() functions because the expression below
-	   'offset = (offset - fs_start_addr) / 2;' (see in above mentioned functions)
-	   calculates offset from the beginning of the 'flash_emu' array, not from the first
-	   avaiable page-aligned address.
-	   To fix that, we take an address within 'flash_emu' pointed by the first page
-	   available for the user data. */
 	first_page = &flash_emu[(fs_start_addr - (uint32_t)flash_emu) / 2];
 	available_memory = FLASH_SIZE_TOTAL - ((uint32_t)first_page - (uint32_t)flash_emu);
 	DBG_PRINT_VARG(
@@ -214,8 +209,6 @@ mm_save_image(void)
 		fclose(aFile);
 		aFile = NULL;
 	}
-	
-	// free(flash_emu);
 
 	return result;
 }
