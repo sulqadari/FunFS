@@ -37,10 +37,10 @@ mm_set_bounds(void)
 	available_memory = FLASH_SIZE_TOTAL - ((uint32_t)first_page - (uint32_t)flash_emu);
 	DBG_PRINT_VARG(
 		"\n"
-		"flash size:              %d\n"
-		"page size:               %d\n"
-		"pages total:             %d\n"
-		"transaction buffer size: %d\n"
+		"flash size:              %d bytes\n"
+		"page size:               %d bytes\n"
+		"pages total:             %d bytes\n"
+		"transaction buffer size: %d bytes\n"
 		"flash start address:     %08X\n"
 		"program start address:   %08X\n"
 		"flash upper bound:       %08X\n\n",
@@ -57,7 +57,7 @@ mm_set_bounds(void)
 void
 set_available_memory(uint32_t size)
 {
-	available_memory -= size;
+	available_memory -= size + sizeof(block_t);
 }
 
 uint32_t
@@ -115,12 +115,12 @@ mm_write(uint32_t offset, uint16_t half_word)
 	// address to index conversion
 	offset = (offset - fs_start_addr) / 2;
 
-	if (flash_emu[offset] != 0xFFFF) {
+	if (first_page[offset] != 0xFFFF) {
 		printf(
 			"\n\t\t\t****HardFault****\n"
 			"Attempt to write at address '%08X' (emu_flash[%d])\n"
 			"which isn't blank and contains '%08X' value\n\n",
-			temp, offset, flash_emu[offset]
+			temp, offset, first_page[offset]
 		);
 
 		// DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
@@ -237,8 +237,6 @@ clear_page(uint32_t address)
 	return mm_Ok;
 }
 
-void mm_rewrite_page(const uint32_t page_addr, const uint32_t data_addr, const uint32_t len);
-
 /**
  * Updates a data field in a given page.
  * Because we can only write into 'cleared' memory, and clearing encompases
@@ -246,14 +244,13 @@ void mm_rewrite_page(const uint32_t page_addr, const uint32_t data_addr, const u
  * updates at the given offset and then writes updated page into the flash. 
  * Targeted page in flash is cleared beforehand, natch.
  */
-mm_Result
-mm_copy_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, const uint32_t len)
+static mm_Result
+rewrite_next_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, const uint32_t len)
 {
 	mm_Result result         = mm_Ok;
 	uint16_t half_word       = 0;
 
 	memset((uint8_t*)page_ram, 0xFF, sizeof(page_ram));
-	mm_rewrite_page(page_addr, data_addr, len);
 
 	do {
 		// 1. copy all data from flash to ram
@@ -296,18 +293,23 @@ mm_copy_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, 
 	return result;
 }
 
-void
-mm_rewrite_page(const uint32_t page_addr, const uint32_t data_addr, const uint32_t len)
+mm_Result
+mm_rewrite_page(const uint32_t curr_page, const uint32_t data_start_addr, uint8_t* data, const uint32_t len)
 {
-	uint32_t data_upper_bound = data_addr + len;
-	uint32_t belongs_to_page = PAGE_ALIGN(data_upper_bound);
-	if (page_addr != belongs_to_page) {
-		printf(
-			"WARNING: data spawns over pages.\n"
-			"PAGE 1:   %08X\n"
-			"PAGE 2:   %08X\n"
-			"DATA LEN: %d\n",
-			page_addr, belongs_to_page, len
-		);
+	mm_Result result = mm_Ok;
+	uint32_t data_end_addr = data_start_addr + len;
+	uint32_t next_page     = PAGE_ALIGN(data_end_addr);
+	uint8_t* data_ptr = data;
+
+	if (curr_page == next_page) {
+		rewrite_next_page(curr_page, data_start_addr, data, len);
+	} else {
+		uint32_t new_len = data_start_addr - PAGE_CEIL(curr_page);
+		rewrite_next_page(curr_page, data_start_addr, data_ptr, new_len);
+		data_ptr += new_len;
+		new_len = len - new_len;
+		rewrite_next_page(curr_page, data_start_addr, data_ptr, new_len);
 	}
+
+	return result;
 }

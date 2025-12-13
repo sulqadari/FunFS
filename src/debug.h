@@ -49,7 +49,8 @@ char* dbg_sw_to_string(ISO_SW sw);
 #define DBG_PRINT_VALUE(value, len)
 #define DBG_PRINT_HEX(array, length)
 #define DBG_SW_TO_STRING(sw)
-
+#define DBG_GET_AVAIL_MEMORY()
+#define DBG_SET_AVAIL_MEMORY(expr)
 #endif /* FUNFS_DBG_MODE */
 
 #endif /* FUNFS_DEBUG_H */

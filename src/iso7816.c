@@ -11,10 +11,10 @@ iso_initialize(void)
 {
 	DBG_PRINT_VARG("\ncall: %s\n\n", "iso_initialize")
 	DBG_PRINT_VARG(
-		"VA                     size: %d\n"
-		"SuperBlock             size: %d\n"
-		"Max number of entries in DF: %d\n"
-		"Inode                  size: %d\n",
+		"VA                     size: %d bytes\n"
+		"SuperBlock             size: %d bytes\n"
+		"Max number of entries in DF: %d 'DF_Record's\n"
+		"Inode                  size: %d bytes\n",
 		sizeof(ValidityArea),
 		sizeof(SuperBlock),
 		sizeof(DF_Payload) / sizeof(DF_Record) - 1,
@@ -73,8 +73,8 @@ iso_initialize(void)
 		"\nSuperBlock\n"
 		"super block start:     %04X\n"
 		"inodes_start:          %04X\n"
-		"inodes table capacity: %d\n"
-		"available memory:      %d\n\n",
+		"inodes table capacity: %d 'INode's\n"
+		"available memory:      %d bytes\n\n",
 		va.spr_blk_addr,
 		va.spr_blk.inodes_start,
 		va.spr_blk.inodes_capacity,

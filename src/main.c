@@ -466,7 +466,7 @@ test_08(void)
 		cmds[idx++].len = len;
 		cmds[idx].cmd = hex_to_bytes("6217 8302 5F01 8202 0100 8002 007F 8A01 01 8C06 6BFFFFFF1111", &len);
 		cmds[idx++].len = len;
-		cmds[idx].cmd = hex_to_bytes("6217 8302 5F02 8202 0100 8002 0300 8A01 01 8C06 6BFFFFFF1111", &len);
+		cmds[idx].cmd = hex_to_bytes("6217 8302 5F02 8202 0100 8002 020C 8A01 01 8C06 6BFFFFFF1111", &len);
 		cmds[idx++].len = len;
 		
 		cmds[idx].cmd = hex_to_bytes("3F00 4F00 4F01 4F02", &len);
@@ -476,6 +476,9 @@ test_08(void)
 
 		uint8_t i;
 		for (i = 0; i < idx - 2; ++i) {
+			printf("\nCDATA: ");
+			DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
+			
 			if ((result = iso_create_file(cmds[i].cmd, cmds[i].len)) != SW_OK) {
 				char* str = DBG_SW_TO_STRING(result)
 				printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
@@ -487,6 +490,70 @@ test_08(void)
 			break;
 		
 		for ( ; i < idx; ++i) {
+			printf("\nCDATA: ");
+			DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
+
+			if ((result = iso_select_by_path(cmds[i].cmd, cmds[i].len)) != SW_OK) {
+				char* str = DBG_SW_TO_STRING(result)
+				printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
+				break;
+			}
+		}
+
+		result = SW_OK;
+	} while (0);
+
+	for (uint8_t i = 0; i < idx; ++i) {
+		free(cmds[i].cmd);
+		cmds[i].len = 0;
+	}
+	
+	mm_save_image();
+	return result;
+}
+
+static ISO_SW
+test_09(void)
+{
+	ISO_SW result = SW_UNKNOWN;
+	uint16_t len = 0;
+	cmd_t cmds[9];
+	uint8_t idx = 0;
+
+	printf("====================TEST 09\n");
+	do {
+		if (iso_initialize() != SW_OK) {
+			printf("ERROR: failed to initialize file system\n");
+			break;
+		}
+
+		cmds[idx].cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		cmds[idx++].len = len;
+		cmds[idx].cmd = hex_to_bytes("6217 8302 3F01 8202 0100 8002 0100 8A01 01 8C06 6BFFFFFF1111", &len);
+		cmds[idx++].len = len;
+		
+		cmds[idx].cmd = hex_to_bytes("3F00 3F01", &len);
+		cmds[idx++].len = len;
+
+		uint8_t i;
+		for (i = 0; i < idx - 1; ++i) {
+			printf("\nCDATA: ");
+			DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
+			
+			if ((result = iso_create_file(cmds[i].cmd, cmds[i].len)) != SW_OK) {
+				char* str = DBG_SW_TO_STRING(result)
+				printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
+				break;
+			}
+		}
+
+		if (result != SW_OK)
+			break;
+		
+		for ( ; i < idx; ++i) {
+			printf("\nCDATA: ");
+			DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
+
 			if ((result = iso_select_by_path(cmds[i].cmd, cmds[i].len)) != SW_OK) {
 				char* str = DBG_SW_TO_STRING(result)
 				printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
@@ -514,7 +581,8 @@ main(int argc, char* argv[])
 		// if (test_05() != SW_OK) break;
 		// if (test_06() != SW_OK) break;
 		// if (test_07() != SW_OK) break;
-		if (test_08() != SW_OK) break;
+		// if (test_08() != SW_OK) break;
+		if (test_09() != SW_OK) break;
 		printf("DONE!\n");
 	} while (0);
 

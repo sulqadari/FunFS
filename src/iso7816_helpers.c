@@ -62,10 +62,10 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 			break;
 		}
 
-		// 2. If even a word isn't clear, then call mm_copy_page()
+		// 2. If even a word isn't clear, then call mm_rewrite_page()
 		if (half_word != 0xFFFF) {
 			uint32_t page_start = PAGE_ALIGN(offset);
-			if (mm_copy_page(page_start, offset, data, len) != mm_Ok) {
+			if (mm_rewrite_page(page_start, offset, data, len) != mm_Ok) {
 				result = SW_MEMORY_FAILURE;
 				break;
 			}
@@ -193,7 +193,7 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record))) != SW_OK) {
 			break;
 		}
-		
+
 		result = hlp_write_data(df_children_count(new_df_node), (uint8_t*)&count,  sizeof(uint32_t));
 
 	} while (0);
