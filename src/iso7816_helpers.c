@@ -1,33 +1,34 @@
 #include "iso7816_helpers.h"
 #include <string.h>
 
-#define assert_eq(curr, expt) \
-	if (curr != expt) {       \
-		result = mm_Err;     \
-		break;                \
+#define assert_eq(curr, expt, sw) \
+	if (curr != expt) {           \
+		result = sw;              \
+		break;                    \
 	} 
 
-#define assert_leq(curr, expt) \
-	if (curr > expt) {         \
-		result = mm_Err;      \
-		break;                 \
+#define assert_leq(curr, expt, sw) \
+	if (curr > expt) {             \
+		result = mm_Err;           \
+		break;                     \
 	}
 
 #define advance(expr) \
 	(expr += len)
 
 
-mm_Result
+ISO_SW
 hlp_read_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
 	// DBG_PRINT_VARG("hlp_read_data(offset: %04X)\n", offset)
 
-	mm_Result result   = mm_Ok;
+	ISO_SW result   = SW_OK;
 	uint16_t half_word = 0;
 
 	for (uint32_t i = 0; i < len; i += 2) {
 
-		if ((result = mm_read(offset + i, &half_word)) != mm_Ok) {
+		if (mm_read(offset + i, &half_word) != mm_Ok) {
+			result = SW_MEMORY_FAILURE;
 			break;
 		}
 
@@ -39,17 +40,17 @@ hlp_read_data(uint32_t offset, uint8_t* data, uint32_t len)
 	return result;
 }
 
-mm_Result
+ISO_SW
 hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
 	// DBG_PRINT_VARG("hlp_write_data(offset: %04X)\n", offset)
-	mm_Result result   = mm_Ok;
+	ISO_SW result      = SW_OK;
 	uint16_t half_word = 0;
 
 	do {
 		// 1. check if the area we're about to write into is clear or not
 		for (uint32_t i = 0; i < len; i += 2) {
-			if ((result = hlp_read_data(offset + i, (uint8_t*)&half_word, 2)) != mm_Ok) {
+			if ((result = hlp_read_data(offset + i, (uint8_t*)&half_word, 2)) != SW_OK) {
 				break;
 			}
 			if (half_word != 0xFFFF) {
@@ -57,14 +58,17 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 			}
 		}
 
-		if (result != mm_Ok){
+		if (result != SW_OK){
 			break;
 		}
 
 		// 2. If even a word isn't clear, then call mm_copy_page()
 		if (half_word != 0xFFFF) {
 			uint32_t page_start = PAGE_ALIGN(offset);
-			result = mm_copy_page(page_start, offset, data, len);
+			if (mm_copy_page(page_start, offset, data, len) != mm_Ok) {
+				result = SW_MEMORY_FAILURE;
+				break;
+			}
 
 		  // 3. else - just write data starting from the given offset.
 		} else {
@@ -73,7 +77,8 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 				half_word |= (uint16_t)data[i + 1] << 8;
 				half_word |= (uint16_t)data[i] & 0x00FF;
 
-				if ((result = mm_write(offset + i, half_word)) != mm_Ok) {
+				if (mm_write(offset + i, half_word) != mm_Ok) {
+					result = SW_MEMORY_FAILURE;
 					break;
 				}
 
@@ -86,10 +91,10 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 }
 
 /** Adds to the DF_Payload::entries array an entry about newly created file */
-static mm_Result
+static ISO_SW
 add_record_to_parent(ValidityArea* va, INode* current)
 {
-	mm_Result result = mm_Ok;
+	ISO_SW result = SW_OK;
 
 	// choose the parent depending on file type to be created:
 	// If we're about to create an EF, then we should start updating the 'size' field from current folder.
@@ -102,18 +107,18 @@ add_record_to_parent(ValidityArea* va, INode* current)
 		uint32_t count = 0;
 		
 		// get the 'count' of parent folder. It will be used as an index into 'entries' array
-		if ((result = hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
+		if ((result = hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != SW_OK) {
 			break;
 		}
 		
 		DF_Record newRecord = {.iNode = va->spr_blk.inodes_count, .fid = current->fid};
 		// write the record about a new child of current folder.
-		if ((result = hlp_write_data((uint32_t)&df_children_list(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != mm_Ok) {
+		if ((result = hlp_write_data((uint32_t)&df_children_list(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != SW_OK) {
 			break;
 		}
 		
 		// update the 'count' of parent folder.
-		if ((result = hlp_write_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != mm_Ok) {
+		if ((result = hlp_write_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != SW_OK) {
 			break;
 		}
 
@@ -124,10 +129,10 @@ add_record_to_parent(ValidityArea* va, INode* current)
 
 /** traverse the path from this DF right to the MF,
  * increasing the inode->size value of each parent folder. */
-static mm_Result
+static ISO_SW
 update_parent_size(ValidityArea* va, INode* current)
 {
-	mm_Result result = mm_Ok;
+	ISO_SW result = SW_OK;
 	INode* inode_array = (INode*)va->spr_blk.inodes_start;
 	uint16_t idx = va->parent_dir.iNode;
 	uint16_t fid = va->parent_dir.fid;
@@ -135,13 +140,11 @@ update_parent_size(ValidityArea* va, INode* current)
 	do {
 		INode* parent = (INode*)&inode_array[idx];
 		if (parent->desc[0] != ft_DF) {
-			result = mm_Err;
 			break;
 		}
 		// add the size of newly create folder to the size of subsequent parent folder.
 		uint16_t updated_size = parent->size + current->size;
-		if ((result = hlp_write_data((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != mm_Ok) {
-			result = mm_writeErr;
+		if ((result = hlp_write_data((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != SW_OK) {
 			break;
 		}
 
@@ -154,15 +157,15 @@ update_parent_size(ValidityArea* va, INode* current)
 	return result;
 }
 
-static mm_Result
+static ISO_SW
 data_block_for_df(ValidityArea* va, INode* new_df_node)
 {
-	mm_Result result = mm_Ok;
+	ISO_SW result = SW_OK;
 
 	do {
 		// Assigning 3F00 to some another file is forbidden.
 		if ((va->spr_blk.inodes_count != 0x00) && (new_df_node->fid == FID_MASTER_FILE)) {
-			result = mm_Err;
+			result = SW_DF_NAME_ALREADY_EXISTS;
 			break;
 		}
 
@@ -170,9 +173,11 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 		new_df_node->size = sizeof(DF_Payload);
 		// allocate a data block for the newly created DF
 		if ((new_df_node->data = mm_allocate(new_df_node->size)) == 0x00) {
-			result = mm_writeErr;
+			result = SW_NOT_ENOUGH_MEMORY_IN_FILE;
 			break;
 		}
+
+		DBG_SET_AVAIL_MEMORY(new_df_node->size)
 
 		// MIND THE SEQUENCE! firstable update the parent, and only after current.
 		hlp_va_set_parent_df(va, va->current_dir.fid, va->current_dir.iNode); // Current dir becomes 'parent'
@@ -180,24 +185,37 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 		
 		// In each newly created dir, the first two records goes for itself and its parent
 		uint32_t count = 0;
-		hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->current_dir, sizeof(DF_Record));
-		hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record));
-		hlp_write_data(df_children_count(new_df_node), (uint8_t*)&count,  sizeof(uint32_t));
+
+		
+		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->current_dir, sizeof(DF_Record))) != SW_OK) {
+			break;
+		}
+		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record))) != SW_OK) {
+			break;
+		}
+		if ((result = hlp_write_data(df_children_count(new_df_node), (uint8_t*)&count,  sizeof(uint32_t))) != SW_OK) {
+			break;
+		}
+		
+
 	} while (0);
 
 	return result;
 }
 
-static mm_Result
+static ISO_SW
 data_block_for_ef(ValidityArea* va, INode* new_ef_node)
 {
-	mm_Result result = mm_Ok;
+	ISO_SW result = SW_OK;
 	do {
 		// allocate a data block for the newly created DF
 		if ((new_ef_node->data = mm_allocate(new_ef_node->size)) == 0x00) {
-			result = mm_writeErr;
+			result = SW_MEMORY_FAILURE;
 			break;
 		}
+		
+		DBG_SET_AVAIL_MEMORY(new_ef_node->size)
+
 		hlp_va_set_current_ef(va, new_ef_node->fid, va->spr_blk.inodes_count);
 	} while (0);
 
@@ -232,10 +250,10 @@ hlp_va_set_current_ef(ValidityArea* va, uint16_t fid, uint16_t node)
 }
 
 /** TODO: implement parameters consistency check */
-mm_Result
+ISO_SW
 hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 {
-	mm_Result result = mm_Ok;
+	ISO_SW result = SW_OK;
 	uint8_t* curr = data;
 	uint8_t* end  = data + data_len;
 
@@ -245,7 +263,7 @@ hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 		uint8_t len = *curr++;
 
 		if (tag != 0x62) {
-			result = mm_Err;
+			result = SW_INCORRECT_PARAMS_IN_CDATA;
 			break;
 		}
 		
@@ -254,56 +272,56 @@ hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 			len = *curr++;
 			switch (tag) {
 				case 0x80: { // File size
-					assert_eq(len, 2);
+					assert_eq(len, 2, SW_INCORRECT_PARAMS_IN_CDATA);
 					inode->size = hlp_get_short(curr);
 					advance(curr);
 				} break;
 				case 0x82: { // file descriptor (e.g. DF, EF, LF, etc.)
-					assert_leq(len, 5);
+					assert_leq(len, 5, SW_INCORRECT_PARAMS_IN_CDATA);
 					memcpy(&inode->desc, curr, len);
 					advance(curr);
 				} break;
 				case 0x83: { // file ID (e.g. 3F00, 0101, etc.)
-					assert_eq(len, 2);
+					assert_eq(len, 2, SW_INCORRECT_PARAMS_IN_CDATA);
 					inode->fid = hlp_get_short(curr);
 					advance(curr);
 				} break;
 				case 0x84: { // application AID (for DFs only)
-					assert_leq(len, 16);
+					assert_leq(len, 16, SW_INCORRECT_PARAMS_IN_CDATA);
 					memcpy(&inode->aid, curr, len);
 					advance(curr);
 				} break;
 				case 0x88: { // short file ID
-					assert_eq(len, 1);
+					assert_eq(len, 1, SW_INCORRECT_PARAMS_IN_CDATA);
 					inode->sfi = *curr;
 					advance(curr);
 				} break;
 				case 0x8A: { // Life cycle stage
-					assert_eq(len, 1);
+					assert_eq(len, 1, SW_INCORRECT_PARAMS_IN_CDATA);
 					inode->lcs = *curr;
 					advance(curr);
 				} break;
 				case 0x8C: {  // security attributes in compact format
-					assert_leq(len, 7);
+					assert_leq(len, 7, SW_INCORRECT_PARAMS_IN_CDATA);
 					memcpy(&inode->compact, curr, len);
 					advance(curr);
 				} break;
 				case 0x8D: { // the FID of associated securiy environment
-					assert_eq(len, 2);
+					assert_eq(len, 2, SW_INCORRECT_PARAMS_IN_CDATA);
 					inode->se = hlp_get_short(curr);
 					advance(curr);
 				} break;
 				case 0xAB: {
-					assert_leq(len, 20);
+					assert_leq(len, 20, SW_INCORRECT_PARAMS_IN_CDATA);
 					memcpy(&inode->expanded, curr, len);
 					advance(curr);
 				} break;
 				default: {
-					result = mm_Err;
+					result = SW_DATA_NOT_USABLE;
 				} break;
 			}
 
-			if (result != mm_Ok)
+			if (result != SW_OK)
 				break;
 		}
 
@@ -312,10 +330,10 @@ hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 	return result;
 }
 
-mm_Result
+ISO_SW
 hlp_allocate_data_block(ValidityArea* va, INode* inode)
 {
-	mm_Result result = mm_Err;
+	ISO_SW result = SW_OK;
 	FileType type = inode->desc[0];
 	
 	do {
@@ -331,7 +349,7 @@ hlp_allocate_data_block(ValidityArea* va, INode* inode)
 			break;
 		}
 
-		if (result != mm_Ok)
+		if (result != SW_OK)
 			break;
 		
 		// If this is the MF, then there is no parent dir at all. Bail out.
@@ -339,27 +357,27 @@ hlp_allocate_data_block(ValidityArea* va, INode* inode)
 			break;
 		}
 		// update DF_Record array of its parent
-		if ((result = add_record_to_parent(va, inode)) != mm_Ok) {
+		if ((result = add_record_to_parent(va, inode)) != SW_OK) {
 			break;
 		}
 		// and update the 'size' field of its parent dirs.
-		if ((result = update_parent_size(va, inode)) != mm_Ok) {
+		if ((result = update_parent_size(va, inode)) != SW_OK) {
 			break;
 		}
-		result = mm_Ok;
+		result = SW_OK;
 	} while (0);
 
 	return result;
 }
 
-mm_Result
+ISO_SW
 hlp_store_inode(ValidityArea* va, INode* inode)
 {
-	mm_Result result = mm_Err;
+	ISO_SW result = mm_Err;
 
 	do {
 		INode* inode_array = (INode*)va->spr_blk.inodes_start;
-		if ((result = hlp_write_data((uint32_t)&inode_array[va->spr_blk.inodes_count], (uint8_t*)inode, sizeof(INode))) != mm_Ok) {
+		if ((result = hlp_write_data((uint32_t)&inode_array[va->spr_blk.inodes_count], (uint8_t*)inode, sizeof(INode))) != SW_OK) {
 			break;
 		}
 
@@ -367,7 +385,7 @@ hlp_store_inode(ValidityArea* va, INode* inode)
 		va->spr_blk.inodes_count++;
 
 		// store the updated state of SuperBlock
-		if ((result = hlp_write_data(va->spr_blk_addr, (uint8_t*)&va->spr_blk, sizeof(SuperBlock))) != mm_Ok) {
+		if ((result = hlp_write_data(va->spr_blk_addr, (uint8_t*)&va->spr_blk, sizeof(SuperBlock))) != SW_OK) {
 			break;
 		}
 

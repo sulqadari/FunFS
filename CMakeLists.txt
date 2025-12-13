@@ -5,23 +5,20 @@ set(FUNFS_EXEC "FunFSexec")
 
 #-------------------------- Choose required options
 
-option(USE_DEBUG "Apply debugging flags"                           YES)
+option(USE_DEBUG "Apply debugging flags"                            YES)
 option(USE_SANIT "Apply memory leak and boundary violation control" NO)
 
 #--------------------------
 
 
 if (USE_DEBUG)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -Wall -O0 -g3")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -Wall -O0 -g3 -fsanitize=address -static-libasan -fno-omit-frame-pointer")
 	add_compile_definitions(
-		FUNFS_DBG_MODE
+		"FUNFS_DBG_MODE"
 	)
+
 else()
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -Wall -Ofast")
-endif()
-
-if (USE_SANIT)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -static-libasan -fno-omit-frame-pointer")
 endif()
 
 add_subdirectory(src)

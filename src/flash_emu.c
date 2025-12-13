@@ -10,6 +10,7 @@ static uint32_t fs_upper_addr = 0x00;
 static uint16_t* first_page = NULL;
 
 static uint16_t page_ram[PAGE_SIZE / 2];
+static uint32_t available_memory = 0;
 
 static void
 mm_set_bounds(void)
@@ -18,7 +19,7 @@ mm_set_bounds(void)
 	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
 
 	/* To make simulator as close to hardware as possible, this function
-	   sets 'fs_start_addr' to address which is aligned to page size. This in turn has
+	   sets 'fs_start_addr' to address which is aligned up to the nearest page. This in turn has
 	   broken mm_write() and mm_read() functions because the expression below
 	   'offset = (offset - fs_start_addr) / 2;' (see in above mentioned functions)
 	   calculates offset from the beginning of the 'flash_emu' array, not from the first
@@ -26,22 +27,36 @@ mm_set_bounds(void)
 	   To fix that, we take an address within 'flash_emu' pointed by the first page
 	   available for the user data. */
 	first_page = &flash_emu[(fs_start_addr - (uint32_t)flash_emu) / 2];
-
+	available_memory = sizeof(flash_emu) - ((uint32_t)first_page - (uint32_t)flash_emu);
 	DBG_PRINT_VARG(
-		"\nstart address:   %08X\n"
-		"upper bound:     %08X\n"
-		"pages total:     %d\n"
-		"page size:       %d\n"
-		"flash_emu size:  %d\n"
-		"page_ram size:   %d\n\n",
-
-		fs_start_addr,
-		fs_upper_addr,
-		PAGES_TOTAL,
-		PAGE_SIZE,
+		"\n"
+		"flash size:              %d\n"
+		"page size:               %d\n"
+		"pages total:             %d\n"
+		"transaction buffer size: %d\n"
+		"flash start address:     %08X\n"
+		"program start address:   %08X\n"
+		"flash upper bound:       %08X\n\n",
 		sizeof(flash_emu),
-		sizeof(page_ram)
+		PAGE_SIZE,
+		PAGES_TOTAL,
+		sizeof(page_ram),
+		(uint32_t)flash_emu,
+		fs_start_addr,
+		fs_upper_addr
 	)
+}
+
+void
+set_available_memory(uint32_t size)
+{
+	available_memory -= size;
+}
+
+uint32_t
+get_available_memory(void)
+{
+	return available_memory;
 }
 
 uint32_t
@@ -101,7 +116,7 @@ mm_write(uint32_t offset, uint16_t half_word)
 			temp, offset, flash_emu[offset]
 		);
 
-		DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
+		// DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
 
 		exit(1);
 		return mm_writeErr;
@@ -178,7 +193,7 @@ update_image(void)
 		}
 	
 	} while (0);
-	DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
+	// DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
 	return result;
 }
 
@@ -228,8 +243,7 @@ mm_copy_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, 
 	mm_Result result         = mm_Ok;
 	uint16_t half_word       = 0;
 
-	memset(page_ram, 0xFF, PAGE_SIZE);
-
+	memset((uint8_t*)page_ram, 0xFF, sizeof(page_ram));
 	mm_rewrite_page(page_addr, data_addr, len);
 
 	do {

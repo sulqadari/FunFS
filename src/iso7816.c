@@ -11,15 +11,13 @@ iso_initialize(void)
 {
 	DBG_PRINT_VARG("\ncall: %s\n\n", "iso_initialize")
 	DBG_PRINT_VARG(
-		"VA         size: %d\n"
-		"SuperBlock size: %d\n"
-		"DF_Record  size: %d\n"
-		"DF_Payload size: %d\n"
-		"Inode      size: %d\n",
+		"VA                     size: %d\n"
+		"SuperBlock             size: %d\n"
+		"Max number of entries in DF: %d\n"
+		"Inode                  size: %d\n",
 		sizeof(ValidityArea),
 		sizeof(SuperBlock),
-		sizeof(DF_Record),
-		sizeof(DF_Payload),
+		sizeof(DF_Payload) / sizeof(DF_Record) - 1,
 		sizeof(INode)
 	)
 	
@@ -34,7 +32,7 @@ iso_initialize(void)
 			break;
 		}
 		// Read the 'Super Block' and find out has the file system been initialized previously or not
-		if (hlp_read_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != mm_Ok) {
+		if (hlp_read_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != SW_OK) {
 			break;
 		}
 
@@ -52,15 +50,19 @@ iso_initialize(void)
 			break;
 		}
 
-		uint32_t size = INODE_TABLE_SIZE;	// allocate space for the Inodes table.
-		if ((va.spr_blk.inodes_start = mm_allocate(size)) == 0) {
+		DBG_SET_AVAIL_MEMORY(sizeof(SuperBlock))
+
+		uint32_t inode_table_size = INODE_TABLE_SIZE;	// allocate 10% of available memory for the Inodes table.
+		if ((va.spr_blk.inodes_start = mm_allocate(inode_table_size)) == 0) {
 			break;
 		}
 
+		DBG_SET_AVAIL_MEMORY(inode_table_size)
+
 		va.spr_blk.magic           = 0xCAFEBABE;
 		va.spr_blk.inodes_count    = 0x00;
-		va.spr_blk.inodes_capacity = size / sizeof(INode);	// 1024 / 64 = 96
-		if (hlp_write_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != mm_Ok) { // store the state of SuperBlock
+		va.spr_blk.inodes_capacity = inode_table_size / sizeof(INode);	// 1024 / 64 = 96
+		if (hlp_write_data(va.spr_blk_addr, (uint8_t*)&va.spr_blk, sizeof(SuperBlock)) != SW_OK) { // store the state of SuperBlock
 			break;
 		}
 
@@ -69,10 +71,15 @@ iso_initialize(void)
 
 	DBG_PRINT_VARG(
 		"\nSuperBlock\n"
-		"inodes_start:      %04X\n"
-		"super block start: %04X\n\n",
+		"super block start:     %04X\n"
+		"inodes_start:          %04X\n"
+		"inodes table capacity: %d\n"
+		"available memory:      %d\n\n",
+		va.spr_blk_addr,
 		va.spr_blk.inodes_start,
-		va.spr_blk_addr
+		va.spr_blk.inodes_capacity,
+		DBG_GET_AVAIL_MEMORY()
+		
 	)
 
 	return result;
@@ -81,9 +88,9 @@ iso_initialize(void)
 ISO_SW
 iso_create_file(uint8_t* data, uint32_t data_len)
 {
-	DBG_PRINT_VARG("\ncall: %s", "iso_create_file(")
+	DBG_PRINT_VARG("\ncall: %s", "iso_create_file")
 
-	ISO_SW result = SW_UNKNOWN;
+	ISO_SW result = SW_MEMORY_FULL;
 	INode inode;
 
 	do {
@@ -93,24 +100,26 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 		}
 
 		memset((uint8_t*)&inode, 0x00, sizeof(INode));
-		if (hlp_parse_params(&inode, data, data_len) != mm_Ok) {
+		if ((result = hlp_parse_params(&inode, data, data_len)) != SW_OK) {
 			break;
 		}
 		
-		DBG_PRINT_VARG("%04X)\n\n", inode.fid)
+		DBG_PRINT_VARG("(%04X)\n", inode.fid)
 
-		if (hlp_allocate_data_block(&va, &inode) != mm_Ok) {
+		if ((result = hlp_allocate_data_block(&va, &inode)) != SW_OK) {
 			break;
 		}
-		if (hlp_store_inode(&va, &inode) != mm_Ok) {
+		if ((result = hlp_store_inode(&va, &inode)) != SW_OK) {
 			break;
 		}
 
+		DBG_PRINT_SUPERBLOCK(&va)
+		DBG_PRINT_INODE(&inode)
 		result = SW_OK;
 	} while (0);
 
-	DBG_PRINT_SUPERBLOCK(&va);	
-	DBG_PRINT_INODE(&inode);
+	
+	DBG_PRINT_VARG("\navailable memory: %d\n", DBG_GET_AVAIL_MEMORY());
 	
 	return result;
 }
@@ -137,7 +146,7 @@ iso_select_by_name(const uint16_t fid)
 
 		uint32_t count = 0;
 		// get the 'count' of files in current folder.
-		if (hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t)) != mm_Ok) {
+		if (hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t)) != SW_OK) {
 			break;
 		}
 
@@ -146,7 +155,7 @@ iso_select_by_name(const uint16_t fid)
 
 		for (i = 0; i < count; ++i) {
 			// read from current DF's payload region an info about subsequent child. 
-			if (hlp_read_data((uint32_t)&df_children_list(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != mm_Ok) {
+			if (hlp_read_data((uint32_t)&df_children_list(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != SW_OK) {
 				break;
 			}
 
@@ -187,7 +196,7 @@ iso_select_by_path(uint8_t* data, uint32_t data_len)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_select_by_path")
 
-	ISO_SW result = SW_UNKNOWN;
+	ISO_SW result = SW_FILE_NOT_FOUND;
 	uint8_t* ptr = data;
 	uint16_t fid;
 

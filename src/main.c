@@ -466,7 +466,7 @@ test_08(void)
 		cmds[idx++].len = len;
 		cmds[idx].cmd = hex_to_bytes("6217 8302 5F01 8202 0100 8002 007F 8A01 01 8C06 6BFFFFFF1111", &len);
 		cmds[idx++].len = len;
-		cmds[idx].cmd = hex_to_bytes("6217 8302 5F02 8202 0100 8002 007F 8A01 01 8C06 6BFFFFFF1111", &len);
+		cmds[idx].cmd = hex_to_bytes("6217 8302 5F02 8202 0100 8002 0300 8A01 01 8C06 6BFFFFFF1111", &len);
 		cmds[idx++].len = len;
 		
 		cmds[idx].cmd = hex_to_bytes("3F00 4F00 4F01 4F02", &len);
@@ -476,15 +476,20 @@ test_08(void)
 
 		uint8_t i;
 		for (i = 0; i < idx - 2; ++i) {
-			if (iso_create_file(cmds[i].cmd, cmds[i].len) != SW_OK) {
-				printf("ERROR: failed cmd No %d\n", i);
+			if ((result = iso_create_file(cmds[i].cmd, cmds[i].len)) != SW_OK) {
+				char* str = DBG_SW_TO_STRING(result)
+				printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
 				break;
 			}
 		}
 
+		if (result != SW_OK)
+			break;
+		
 		for ( ; i < idx; ++i) {
-			if (iso_select_by_path(cmds[i].cmd, cmds[i].len) != SW_OK) {
-				printf("ERROR: failed cmd No %d\n", i);
+			if ((result = iso_select_by_path(cmds[i].cmd, cmds[i].len)) != SW_OK) {
+				char* str = DBG_SW_TO_STRING(result)
+				printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
 				break;
 			}
 		}
