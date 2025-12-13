@@ -83,8 +83,12 @@ typedef struct {
 
 ISO_SW iso_initialize(void);
 
-ISO_SW iso_create_file(uint8_t*    data, uint32_t data_len);
+ISO_SW iso_create_file   (uint8_t* data, uint32_t data_len);
 ISO_SW iso_select_by_path(uint8_t* data, uint32_t data_len);
 ISO_SW iso_select_by_name(const uint16_t fid);
+
+ISO_SW iso_activate    (uint8_t* data, uint32_t data_len);
+ISO_SW iso_read_binary (uint8_t* data, uint32_t data_len);
+ISO_SW iso_write_binary(uint8_t* data, uint32_t data_len);
 
 #endif /* FUNFS_ISO7816_H */

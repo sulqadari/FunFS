@@ -206,3 +206,33 @@ iso_select_by_path(uint8_t* data, uint32_t data_len)
 	
 	return result;
 }
+
+ISO_SW
+iso_activate(uint8_t* data, uint32_t data_len)
+{
+	DBG_PRINT_VARG("call: %s\n", "iso_activate")
+
+	ISO_SW result = SW_FILE_NOT_FOUND;
+
+	return result;
+}
+
+ISO_SW
+iso_read_binary(uint8_t* data, uint32_t data_len)
+{
+	DBG_PRINT_VARG("call: %s\n", "iso_read_binary")
+
+	ISO_SW result = SW_FILE_NOT_FOUND;
+
+	return result;
+}
+
+ISO_SW
+iso_write_binary(uint8_t* data, uint32_t data_len)
+{
+	DBG_PRINT_VARG("call: %s\n", "iso_write_binary")
+
+	ISO_SW result = SW_FILE_NOT_FOUND;
+	
+	return result;
+}

@@ -113,7 +113,7 @@ mm_write(uint32_t offset, uint16_t half_word)
 	if (first_page[offset] != 0xFFFF) {
 		printf(
 			"\n\t\t\t****HardFault****\n"
-			"Attempt to write at address '%08X' (emu_flash[%d])\n"
+			"Attempt to write at address '%08X' (first_page[%d])\n"
 			"which isn't blank and contains '%08X' value\n\n",
 			temp, offset, first_page[offset]
 		);

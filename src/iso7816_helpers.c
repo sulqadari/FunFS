@@ -9,7 +9,7 @@
 
 #define assert_leq(curr, expt, sw) \
 	if (curr > expt) {             \
-		result = mm_Err;           \
+		result = sw;               \
 		break;                     \
 	}
 
