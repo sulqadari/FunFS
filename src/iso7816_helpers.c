@@ -48,6 +48,7 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 	uint16_t half_word = 0;
 
 	do {
+		// NOTE: this for loop reduces efficiency of this function to O(n * 2)
 		// 1. check if the area we're about to write into is clear or not
 		for (uint32_t i = 0; i < len; i += 2) {
 			if ((result = hlp_read_data(offset + i, (uint8_t*)&half_word, 2)) != SW_OK) {
@@ -64,8 +65,8 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 
 		// 2. If even a word isn't clear, then call mm_rewrite_page()
 		if (half_word != 0xFFFF) {
-			uint32_t page_start = PAGE_ALIGN(offset);
-			if (mm_rewrite_page(page_start, offset, data, len) != mm_Ok) {
+			uint32_t start_page = PAGE_ALIGN(offset);
+			if (mm_rewrite_page(start_page, offset, data, len) != mm_Ok) {
 				result = SW_MEMORY_FAILURE;
 				break;
 			}

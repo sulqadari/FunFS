@@ -287,23 +287,31 @@ rewrite_next_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* d
 }
 
 mm_Result
-mm_rewrite_page(uint32_t curr_page, uint32_t data_start_addr, uint8_t* data, uint32_t len)
+mm_rewrite_page(uint32_t start_page, uint32_t data_start_addr, uint8_t* data, uint32_t len)
 {
 	mm_Result result   = mm_Ok;
+	uint8_t* data_portion = data;
 	uint32_t next_page = PAGE_ALIGN(data_start_addr + len);
-	uint8_t* data_ptr  = data;
-
-	if (curr_page == next_page) {
-		rewrite_next_page(curr_page, data_start_addr, data, len);
+	
+	// data fits into one page
+	if (start_page == next_page) {
+		rewrite_next_page(start_page, data_start_addr, data, len);
 	} else {
-		uint32_t new_len = data_start_addr - PAGE_CEIL(curr_page); // portion of data to be written into the first page
-		while (new_len) {
-			rewrite_next_page(curr_page, data_start_addr, data_ptr, new_len);
-			curr_page = PAGE_CEIL(curr_page + 1);
-			data_ptr        += new_len;
-			new_len          = len - new_len;
-			data_start_addr += new_len;
-		}
+		// data spans two or more pages
+		uint32_t portion = 0;
+		do {
+			portion = PAGE_CEIL(start_page + 1) - data_start_addr;
+			// This block of code comes to play starting from the second iteration.
+			if (len < portion) { // remaining bytes are less than page size
+				portion = len;
+			}
+
+			rewrite_next_page(start_page, data_start_addr, data_portion, portion);
+			start_page       = PAGE_CEIL(start_page + 1);
+			data_start_addr += portion;
+			data_portion    += portion;
+			
+		} while (len -= portion);
 	}
 
 	return result;
