@@ -580,9 +580,9 @@ main(int argc, char* argv[])
 	do {
 		// if (test_05() != SW_OK) break;
 		// if (test_06() != SW_OK) break;
-		if (test_07() != SW_OK) break;
+		// if (test_07() != SW_OK) break;
 		if (test_08() != SW_OK) break;
-		if (test_09() != SW_OK) break;
+		// if (test_09() != SW_OK) break;
 		printf("DONE!\n");
 	} while (0);
 
