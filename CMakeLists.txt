@@ -12,7 +12,7 @@ option(USE_SANIT "Apply memory leak and boundary violation control" NO)
 
 
 if (USE_DEBUG)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -Wall -O0 -g3 -fsanitize=address -static-libasan -fno-omit-frame-pointer")
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -Wall -O0 -g -fsanitize=address -static-libasan -fno-omit-frame-pointer")
 	add_compile_definitions(
 		"FUNFS_DBG_MODE"
 	)

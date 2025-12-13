@@ -193,10 +193,8 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record))) != SW_OK) {
 			break;
 		}
-		if ((result = hlp_write_data(df_children_count(new_df_node), (uint8_t*)&count,  sizeof(uint32_t))) != SW_OK) {
-			break;
-		}
 		
+		result = hlp_write_data(df_children_count(new_df_node), (uint8_t*)&count,  sizeof(uint32_t));
 
 	} while (0);
 
