@@ -76,9 +76,13 @@ typedef struct {
 	uint32_t   spr_blk_addr;
 } ValidityArea;
 
+#ifndef DF_CHILDREN_LIST_LEN
+#	define DF_CHILDREN_LIST_LEN 32
+#endif
+
 typedef struct {
 	uint32_t children_count;
-	DF_Record children_list[32 / sizeof(DF_Record) - 1];
+	DF_Record children_list[DF_CHILDREN_LIST_LEN];
 } DF_Payload;
 
 ISO_SW iso_initialize(void);

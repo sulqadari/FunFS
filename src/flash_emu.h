@@ -6,10 +6,19 @@
 #include <stdlib.h>
 #include "debug.h"
 
-#define PAGE_SIZE   1024
-#define PAGES_TOTAL 64
+#ifndef PAGE_SIZE
+#	define PAGE_SIZE   1024
+#endif
+#ifndef PAGES_TOTAL
+#	define PAGES_TOTAL 64
+#endif
+
+#ifndef ITABLE_MEMORY_OCCUPATION_IN_PERCENTS
+#	define ITABLE_MEMORY_OCCUPATION_IN_PERCENTS 10
+#endif
+
 #define FLASH_SIZE_TOTAL (PAGES_TOTAL * PAGE_SIZE)
-#define INODE_TABLE_SIZE ((FLASH_SIZE_TOTAL * 50) / 100)
+#define INODE_TABLE_SIZE ((FLASH_SIZE_TOTAL * ITABLE_MEMORY_OCCUPATION_IN_PERCENTS) / 100)
 
 #define WORD_CEIL(expr) (((expr) +  0x03) & 0xFFFFFFFC)  // word = 4 bytes
 #define HEX_CEIL(expr)  (((expr) +  0x0F) & 0xFFFFFFF0)  // hex = 16 bytes
