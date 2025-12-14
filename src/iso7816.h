@@ -3,7 +3,9 @@
 
 #include <stdint.h>
 
-#define FID_NONE          0xFFFF
+#define FID_RESERVED_1    0xFFFF
+#define FID_RESERVED_2    0x0000
+#define FID_RESERVED_3    0x3FFF
 #define FID_MASTER_FILE   0x3F00
 #define FID_PIN_FILE      0x4001
 #define FID_SYM_KEYS_FILE 0x4002
@@ -37,11 +39,14 @@ typedef enum {
 	SW_OK                                = 0x9000,
 } ISO_SW;
 
-
+#define LCS_INITIALIZED 0x03
+#define LCS_ACTIVATED   0x05
+#define LCS_DEACTIVATED 0x04
+#define LCS_TERMINATED  0x0F
 /** Keeps information about each file on the file system */
 typedef struct {
 	uint16_t size;        // 0x80; File size       (EF only)
-	uint8_t  desc[5];     // 0x82; file descriptor (e.g. DF, EF, LF, etc.)
+	uint8_t  desc[6];     // 0x82; file descriptor (e.g. DF, EF, LF, etc.)
 	uint16_t fid;         // 0x83; file ID         (e.g. 3F00, 0101, etc.)
 	uint8_t  aid[16];     // 0x84; application AID (DF only)
 	uint8_t  sfi;         // 0x88; short file ID   (EF only)

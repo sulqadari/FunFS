@@ -40,7 +40,7 @@ iso_initialize(void)
 		if (va.spr_blk.magic == 0xCAFEBABE) {
 			hlp_va_set_current_df(&va, FID_MASTER_FILE, 0x00); // Set the MF as the current dir
 			hlp_va_set_parent_df( &va, 0x00,0x00); // The master file hasn't parent dir.
-			hlp_va_set_current_ef(&va, FID_NONE, FID_NONE); // At startup there is no
+			hlp_va_set_current_ef(&va, FID_RESERVED_1, FID_RESERVED_1); // At startup there is no currently selected EF.
 			result = SW_OK;
 			break;
 		}
@@ -96,10 +96,15 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 		}
 
 		memset((uint8_t*)&inode, 0x00, sizeof(INode));
+		
 		if ((result = hlp_parse_params(&inode, data, data_len)) != SW_OK) {
 			break;
 		}
 		
+		if ((result = hlp_check_consistency(&inode)) != SW_OK) {
+			break;
+		}
+
 		DBG_PRINT_VARG("(%04X)\n", inode.fid)
 
 		if ((result = hlp_allocate_data_block(&va, &inode)) != SW_OK) {
@@ -131,7 +136,7 @@ iso_select_by_name(const uint16_t fid)
 	INode* currentDf   = (INode*)&inode_array[idx];
 
 	do {
-		hlp_va_set_current_ef(&va, FID_NONE, FID_NONE);
+		hlp_va_set_current_ef(&va, FID_RESERVED_1, FID_RESERVED_1);
 		// special case: MF always present and is always accessible
 		if (fid == FID_MASTER_FILE) {
 			result = SW_OK;
@@ -142,7 +147,7 @@ iso_select_by_name(const uint16_t fid)
 
 		uint32_t count = 0;
 		// get the 'count' of files in current folder.
-		if (hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t)) != SW_OK) {
+		if ((result = hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != SW_OK) {
 			break;
 		}
 
@@ -151,15 +156,15 @@ iso_select_by_name(const uint16_t fid)
 
 		for (i = 0; i < count; ++i) {
 			// read from current DF's payload region an info about subsequent child. 
-			if (hlp_read_data((uint32_t)&df_children_list(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record)) != SW_OK) {
+			if ((result = hlp_read_data((uint32_t)&df_children_list(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record))) != SW_OK) {
 				break;
 			}
 
 			if (fid == next.fid) {
 				currentDf = (INode*)&inode_array[next.iNode];
 
-				// If the file we have found isn't of type DF, then just update the 'current file' field
-				// of VA and return.
+				// If the file we have found isn't of type DF, then leave the current folder as current one,
+				// and update the 'current file' field of VA and then return.
 				if (currentDf->desc[0] != ft_DF) {
 					hlp_va_set_current_ef(&va, next.fid, next.iNode);
 					break;
@@ -173,6 +178,10 @@ iso_select_by_name(const uint16_t fid)
 				hlp_va_set_current_df(&va, next.fid, next.iNode);  // the one we're looking for becomes 'current'
 				break;
 			}
+		}
+
+		if (result != SW_OK) {
+			break;
 		}
 
 		if (i >= count) {
@@ -212,8 +221,20 @@ iso_activate(uint8_t* data, uint32_t data_len)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_activate")
 
-	ISO_SW result = SW_FILE_NOT_FOUND;
+	ISO_SW result       = SW_OK;
 
+	uint16_t idx        = va.current_file.iNode;
+	INode* inode_array  = NULL;
+	INode* current_file = NULL;
+
+	if (idx == FID_RESERVED_1) {    // current EF isn't set. Thus we're about to
+		idx = va.current_dir.iNode; // activate the current DF.
+	}
+
+	inode_array  = (INode*)va.spr_blk.inodes_start;
+	current_file = (INode*)&inode_array[idx];
+
+	current_file->lcs = LCS_ACTIVATED;
 	return result;
 }
 
@@ -222,7 +243,23 @@ iso_read_binary(uint8_t* data, uint32_t data_len)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_read_binary")
 
-	ISO_SW result = SW_FILE_NOT_FOUND;
+	ISO_SW result = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
+
+	uint16_t idx       = va.current_file.iNode;
+	INode* inode_array = (INode*)va.spr_blk.inodes_start;
+	INode* currentEf   = (INode*)&inode_array[idx];
+
+	do {
+		if (currentEf->desc[0] != ft_EF) {
+			break;
+		}
+
+		if ((result = hlp_read_data(currentEf->data, data, data_len)) != SW_OK) {
+			break;
+		}
+
+		result = SW_OK;
+	} while (0);
 
 	return result;
 }
@@ -231,8 +268,24 @@ ISO_SW
 iso_write_binary(uint8_t* data, uint32_t data_len)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_write_binary")
-
-	ISO_SW result = SW_FILE_NOT_FOUND;
 	
+	ISO_SW result      = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
+
+	uint16_t idx       = va.current_file.iNode;
+	INode* inode_array = (INode*)va.spr_blk.inodes_start;
+	INode* currentEf   = (INode*)&inode_array[idx];
+
+	do {
+		if (currentEf->desc[0] != ft_EF) {
+			break;
+		}
+
+		if ((result = hlp_write_data(currentEf->data, data, data_len)) != SW_OK) {
+			break;
+		}
+
+		result = SW_OK;
+	} while (0);
+
 	return result;
 }

@@ -248,6 +248,77 @@ hlp_va_set_current_ef(ValidityArea* va, uint16_t fid, uint16_t node)
 	va->current_file.iNode = node;
 }
 
+static ISO_SW
+check_df(INode* inode)
+{
+	ISO_SW result = SW_INCORRECT_PARAMS_IN_CDATA;
+
+	do {
+		if (inode->size != 0x00) {
+			break;
+		}
+
+		if (inode->desc[5] != 1) { // the length of descriptor string must be 2 bytes
+			break;
+		}
+
+		if (inode->sfi != 0x00) {
+			break;
+		}
+
+		result = SW_OK;
+	} while (0);
+
+	return result;
+}
+
+static ISO_SW
+check_ef(INode* inode)
+{
+	ISO_SW result = SW_INCORRECT_PARAMS_IN_CDATA;
+
+	do {
+		if (inode->size == 0x00) {
+			break;
+		}
+
+		if (inode->desc[5] != 2) { // the length of descriptor string must be 2 bytes
+			break;
+		}
+
+		if (inode->sfi == 0x00) {
+			inode->sfi = inode->fid & 0x01F;
+		}
+
+		result = SW_OK;
+	} while (0);
+
+	return result;
+}
+
+ISO_SW
+hlp_check_consistency(INode* inode)
+{
+	ISO_SW result = SW_INCORRECT_PARAMS_IN_CDATA;
+
+	do {
+		if (inode->fid == FID_RESERVED_1 ||
+			inode->fid == FID_RESERVED_2 ||
+			inode->fid == FID_RESERVED_3) {
+			break;
+		}
+		
+		if (inode->desc[0] == ft_DF) {
+			result = check_df(inode);
+		} else if (inode->desc[0] == ft_EF) {
+			result = check_ef(inode);
+		}
+
+	} while (0);
+
+	return result;
+}
+
 /** TODO: implement parameters consistency check */
 ISO_SW
 hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
@@ -278,6 +349,7 @@ hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 				case 0x82: { // file descriptor (e.g. DF, EF, LF, etc.)
 					assert_leq(len, 5, SW_INCORRECT_PARAMS_IN_CDATA);
 					memcpy(&inode->desc, curr, len);
+					inode->desc[5] = len;
 					advance(curr);
 				} break;
 				case 0x83: { // file ID (e.g. 3F00, 0101, etc.)

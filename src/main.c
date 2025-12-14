@@ -529,14 +529,28 @@ test_09(void)
 
 		cmds[idx].cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
 		cmds[idx++].len = len;
-		cmds[idx].cmd = hex_to_bytes("6217 8302 3F01 8202 0100 8002 0014 8A01 01 8C06 6BFFFFFF1111", &len);
+		cmds[idx].cmd = hex_to_bytes("6217 8302 3F01 8202 0100 8002 0100 8A01 01 8C06 6BFFFFFF1111", &len);
 		cmds[idx++].len = len;
 		
 		cmds[idx].cmd = hex_to_bytes("3F00 3F01", &len);
 		cmds[idx++].len = len;
+		
+		cmds[idx].cmd = hex_to_bytes("0102030405060708090A F1F2F3F4F5F6F7F8F9FA"
+									 "0102030405060708090A F1F2F3F4F5F6F7F8F9FA"
+									 "0102030405060708090A F1F2F3F4F5F6F7F8F9FA"
+									 "0102030405060708090A F1F2F3F4F5F6F7F8F9FA",
+									 &len);
+		cmds[idx++].len = len;
+		
+		cmds[idx].cmd = hex_to_bytes("F1F2F3F4F5F6F7F8F9FA 0102030405060708090A"
+									 "F1F2F3F4F5F6F7F8F9FA 0102030405060708090A"
+									 "F1F2F3F4F5F6F7F8F9FA 0102030405060708090A"
+									 "F1F2F3F4F5F6F7F8F9FA 0102030405060708090A"
+									 , &len);
+		cmds[idx++].len = len;
 
 		uint8_t i;
-		for (i = 0; i < idx - 1; ++i) {
+		for (i = 0; i < idx - 3; ++i) {
 			printf("\nCDATA: ");
 			DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
 			
@@ -550,18 +564,29 @@ test_09(void)
 		if (result != SW_OK)
 			break;
 		
-		for ( ; i < idx; ++i) {
+		printf("\nCDATA: ");
+		DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
+		
+		if ((result = iso_select_by_path(cmds[i].cmd, cmds[i].len)) != SW_OK) {
+			char* str = DBG_SW_TO_STRING(result)
+			printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
+			break;
+		}
+		i++;
+		if (result != SW_OK)
+			break;
+		
+		for (; i < idx; ++i) {
 			printf("\nCDATA: ");
 			DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
-
-			if ((result = iso_select_by_path(cmds[i].cmd, cmds[i].len)) != SW_OK) {
+			
+			if ((result = iso_write_binary(cmds[i].cmd, cmds[i].len)) != SW_OK) {
 				char* str = DBG_SW_TO_STRING(result)
 				printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
 				break;
 			}
 		}
 
-		result = SW_OK;
 	} while (0);
 
 	for (uint8_t i = 0; i < idx; ++i) {
@@ -581,8 +606,8 @@ main(int argc, char* argv[])
 		// if (test_05() != SW_OK) break;
 		// if (test_06() != SW_OK) break;
 		// if (test_07() != SW_OK) break;
-		if (test_08() != SW_OK) break;
-		// if (test_09() != SW_OK) break;
+		// if (test_08() != SW_OK) break;
+		if (test_09() != SW_OK) break;
 		printf("DONE!\n");
 	} while (0);
 
