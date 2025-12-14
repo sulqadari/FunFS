@@ -1,4 +1,5 @@
-#include "iso7816.h"
+#include "iso7816_cmd.h"
+#include "iso7816_apdu.h"
 #include "flash_emu.h"
 #include <string.h>
 
@@ -598,6 +599,43 @@ test_09(void)
 	return result;
 }
 
+extern Apdu apdu;
+
+static ISO_SW
+test_10(void)
+{
+	ISO_SW result = SW_UNKNOWN;
+	uint16_t len = 0;
+	cmd_t cmds[9];
+	uint8_t idx = 0;
+	memset(&apdu, 0x00, sizeof(Apdu));
+
+	printf("====================TEST 10\n");
+	
+	cmds[idx].cmd   = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+	cmds[idx++].len = len;
+	
+	memcpy(apdu.buffer, cmds[0].cmd, cmds[0].len);
+
+	DBG_PRINT_VARG(
+		"cla: %02x\n"
+		"ins: %02x\n"
+		"p1:  %02x\n"
+		"p2:  %02x\n"
+		"len: %02x\n",
+		apdu.header.cla,
+		apdu.header.ins,
+		apdu.header.p1,
+		apdu.header.p2,
+		apdu.header.len
+	)
+
+	DBG_PRINT_HEX(&apdu.buffer[APDU_OFFSET_CDATA], cmds[0].len - APDU_OFFSET_CDATA)
+
+	free(cmds[0].cmd);
+	return result;
+}
+
 int
 main(int argc, char* argv[])
 {
@@ -607,7 +645,8 @@ main(int argc, char* argv[])
 		// if (test_06() != SW_OK) break;
 		// if (test_07() != SW_OK) break;
 		// if (test_08() != SW_OK) break;
-		if (test_09() != SW_OK) break;
+		// if (test_09() != SW_OK) break;
+		if (test_10() != SW_OK) break;
 		printf("DONE!\n");
 	} while (0);
 

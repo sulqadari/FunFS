@@ -1,5 +1,5 @@
 #include "debug.h"
-#include "iso7816.h"
+#include "iso7816_cmd.h"
 
 typedef struct {
 	char* name;

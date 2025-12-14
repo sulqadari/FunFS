@@ -1,7 +1,7 @@
 #ifndef FUNFS_ISO7816_HELPER_H
 #define FUNFS_ISO7816_HELPER_H
 
-#include "iso7816.h"
+#include "iso7816_cmd.h"
 #include "flash_emu.h"
 
 /** pointer to the beginning of DF_Payload field. */

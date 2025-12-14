@@ -1,7 +1,7 @@
 #ifndef FUNFS_DEBUG_H
 #define FUNFS_DEBUG_H
 
-#include "iso7816.h"
+#include "iso7816_cmd.h"
 #include <string.h>
 #include <stdio.h>
 #include "flash_emu.h"

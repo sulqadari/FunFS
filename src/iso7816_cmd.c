@@ -1,4 +1,4 @@
-#include "iso7816.h"
+#include "iso7816_cmd.h"
 #include "flash_emu.h"
 #include "debug.h"
 #include "iso7816_helpers.h"

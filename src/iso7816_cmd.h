@@ -1,5 +1,5 @@
-#ifndef FUNFS_ISO7816_H
-#define FUNFS_ISO7816_H
+#ifndef FUNFS_ISO7816_CMD_H
+#define FUNFS_ISO7816_CMD_H
 
 #include <stdint.h>
 
@@ -100,4 +100,4 @@ ISO_SW iso_activate    (uint8_t* data, uint32_t data_len);
 ISO_SW iso_read_binary (uint8_t* data, uint32_t data_len);
 ISO_SW iso_write_binary(uint8_t* data, uint32_t data_len);
 
-#endif /* FUNFS_ISO7816_H */
+#endif /* FUNFS_ISO7816_CMD_H */
