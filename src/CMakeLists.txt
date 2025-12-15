@@ -9,4 +9,5 @@ add_library(${FUNFS_SRC}
 
 target_include_directories(${FUNFS_SRC}
 	PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+	PUBLIC ${PROJECT_SOURCE_DIR}/src/platform
 )

@@ -8,7 +8,7 @@
 		"name": "FunFS",
 		"type": "cppdbg",
 		"request": "launch",
-		"program": "${workspaceFolder}/build/src/FunFSexec",
+		"program": "${workspaceFolder}/build/FunFS_exe",
 		"args": [],
 		"stopAtEntry": true,
 		"cwd": "${workspaceFolder}",

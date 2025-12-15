@@ -144,75 +144,6 @@ mm_read(uint32_t offset, uint16_t* half_word)
 	return mm_Ok;
 }
 
-/**
- * Creates an 64 Kbyte flash memory simulation space.
- * If file already exists, it will be reused.
- */
-mm_Result
-mm_open_image(void)
-{
-	// size_t bytesRead = 0;
-	mm_Result result = mm_Ok;
-
-	do {
-		if (aFile != NULL) { // the 'FunFS.bin' is already openned. Bail out.
-			break;
-		}
-
-		memset((uint8_t*)flash_emu, 0xFF, FLASH_SIZE_TOTAL);
-  		aFile = fopen(FLASH_BINARY, "w");
-
-		if (aFile == NULL) {
-			result = mm_fopenErr;
-			break;
-		}
-
-	} while (0);
-
-	return result;
-}
-
-static mm_Result
-update_image(void)
-{
-	mm_Result result = mm_Ok;
-
-	do {
-		if (aFile == NULL) {
-			fprintf(stderr, "ERROR: can't update %s binary because file isn't openned yet.\n", FLASH_BINARY);
-			result = mm_fopenErr;
-			break;
-		}
-		
-		rewind(aFile);
-		
-		size_t written = fwrite(flash_emu, 2, FLASH_SIZE_TOTAL / 2, aFile);
-		if (written < FLASH_SIZE_TOTAL / 2) {
-			fprintf(stderr, "ERROR: couldn't update %s binary file.\n", FLASH_BINARY);
-			fclose(aFile);
-			result = mm_writeErr;
-			break;
-		}
-	
-	} while (0);
-	// DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
-	return result;
-}
-
-mm_Result
-mm_save_image(void)
-{
-	mm_Result result = mm_Ok;
-
-	if (aFile != NULL) {
-		result = update_image();
-		fclose(aFile);
-		aFile = NULL;
-	}
-
-	return result;
-}
-
 static mm_Result
 clear_page(uint32_t address)
 {
@@ -286,12 +217,17 @@ rewrite_next_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* d
 	return result;
 }
 
+/**
+ * Rewrites an entire page.
+ * This function is called whenever the 'hlp_write_data()' function encounters a non-FFFF half-word.
+ * It also handles cases when data spans two or more pages.
+ */
 mm_Result
 mm_rewrite_page(uint32_t start_page, uint32_t data_start_addr, uint8_t* data, uint32_t len)
 {
-	mm_Result result      = mm_Ok;
-	uint8_t* data_portion = data;
-	uint32_t portion      = 0;
+	mm_Result result  = mm_Ok;
+	uint8_t* data_ptr = data;
+	uint32_t portion  = 0;
 
 	do {
 		portion = PAGE_CEIL(start_page + 1) - data_start_addr;
@@ -299,12 +235,87 @@ mm_rewrite_page(uint32_t start_page, uint32_t data_start_addr, uint8_t* data, ui
 			portion = len;
 		}
 
-		rewrite_next_page(start_page, data_start_addr, data_portion, portion);
+		rewrite_next_page(start_page, data_start_addr, data_ptr, portion);
 		start_page       = PAGE_CEIL(start_page + 1);
 		data_start_addr += portion;
-		data_portion    += portion;
+		data_ptr    += portion;
 		
 	} while (len -= portion);
+
+	return result;
+}
+
+
+/**
+ * Creates an 64 Kbyte flash memory simulation space.
+ * If file already exists, it will be reused.
+ */
+mm_Result
+mm_open_image(void)
+{
+	// size_t bytesRead = 0;
+	mm_Result result = mm_Ok;
+
+	do {
+		if (aFile != NULL) { // the 'FunFS.bin' is already openned. Bail out.
+			break;
+		}
+
+		memset((uint8_t*)flash_emu, 0xFF, FLASH_SIZE_TOTAL);
+  		aFile = fopen(FLASH_BINARY, "w");
+
+		if (aFile == NULL) {
+			result = mm_fopenErr;
+			break;
+		}
+
+	} while (0);
+
+	return result;
+}
+
+static mm_Result
+update_image(void)
+{
+	mm_Result result = mm_Ok;
+
+	do {
+		if (aFile == NULL) {
+			fprintf(stderr, "ERROR: can't update %s binary because file isn't openned yet.\n", FLASH_BINARY);
+			result = mm_fopenErr;
+			break;
+		}
+		
+		
+	
+	} while (0);
+	// DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
+	return result;
+}
+
+mm_Result
+mm_save_image(void)
+{
+	mm_Result result = mm_Ok;
+
+	do {
+		if (aFile == NULL) {
+			break;
+		}
+
+		rewind(aFile);
+		
+		size_t written = fwrite(flash_emu, 2, FLASH_SIZE_TOTAL / 2, aFile);
+		if (written < FLASH_SIZE_TOTAL / 2) {
+			fprintf(stderr, "ERROR: couldn't update %s binary file.\n", FLASH_BINARY);
+			fclose(aFile);
+			result = mm_writeErr;
+			break;
+		}
+		
+		fclose(aFile);
+		aFile = NULL;
+	} while (0);
 
 	return result;
 }
