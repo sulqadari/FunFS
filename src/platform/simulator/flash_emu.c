@@ -171,8 +171,8 @@ clear_page(uint32_t address)
 static mm_Result
 rewrite_next_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, const uint32_t len)
 {
-	mm_Result result         = mm_Ok;
-	uint16_t half_word       = 0;
+	mm_Result result   = mm_Ok;
+	uint16_t half_word = 0;
 
 	memset((uint8_t*)page_ram, 0xFF, sizeof(page_ram));
 

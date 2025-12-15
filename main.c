@@ -12,8 +12,7 @@ main(int argc, char* argv[])
 
 	udp_server_init();
 	if ((sw = iso_initialize()) != SW_OK) {
-		char* str = DBG_SW_TO_STRING(sw)
-		printf("ERROR: 'iso_initialize()' function failed with SW %04X (%s)\n", sw, str);
+		DBG_PRINT_VARG("ERROR: 'iso_initialize()' function failed with SW %04X (%s)\n", sw, DBG_SW_TO_STRING(sw));
 		exit(1);
 	}
 

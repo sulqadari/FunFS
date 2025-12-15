@@ -134,7 +134,7 @@ iso_create_file(Apdu* apdu)
 	return result;
 }
 
-ISO_SW
+static ISO_SW
 iso_select_by_name(const uint16_t fid)
 {
 	DBG_PRINT_VARG("\ncall: %s(%04X)\n\n", "iso_select_by_name", fid)
@@ -205,29 +205,42 @@ iso_select_by_name(const uint16_t fid)
 	return result;
 }
 
-ISO_SW
-iso_select_by_path(Apdu* apdu)
+static ISO_SW
+iso_select_by_path(uint8_t* cdata, uint16_t cdata_len)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_select_by_path")
 
-	uint8_t* cdata     = &apdu->buffer[APDU_OFFSET_CDATA];
-	uint16_t cdata_len = apdu->header.len;
-	ISO_SW   result    = SW_INCORRECT_P1P2;
+	ISO_SW   result = SW_FILE_NOT_FOUND;
 	uint16_t fid;
 
 	do {
-		if (apdu->header.p1 != 0x00) {
-			break;
-		}
-
-		result = SW_FILE_NOT_FOUND;
-		fid    = hlp_get_short(cdata);
+		fid = hlp_get_short(cdata);
 		if ((result = iso_select_by_name(fid)) != SW_OK)
 			break; 
 
 		cdata += 2;
 	} while (cdata_len -= 2);
 	
+	return result;
+}
+
+ISO_SW
+iso_select(Apdu* apdu)
+{
+	uint8_t* cdata     = &apdu->buffer[APDU_OFFSET_CDATA];
+	uint16_t cdata_len = apdu->header.len;
+	ISO_SW result      = SW_INCORRECT_P1P2;
+
+	do {
+		if (apdu->header.p1 == 0x00) {
+			result = iso_select_by_name(hlp_get_short(cdata));
+		} else if (apdu->header.p1 == 0x08) {
+			result = iso_select_by_path(cdata, cdata_len);
+		} else {
+			break;
+		}
+	} while (0);
+
 	return result;
 }
 

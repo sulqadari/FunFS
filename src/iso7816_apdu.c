@@ -17,7 +17,7 @@ apdu_process(Apdu* apdu)
 				sw = iso_create_file(apdu);
 			} break;
 			case APDU_INS_SELECT      : {
-				sw = iso_select_by_path(apdu);
+				sw = iso_select(apdu);
 			} break;
 			case APDU_INS_ACTIVATE    : {
 				sw = iso_activate(apdu);

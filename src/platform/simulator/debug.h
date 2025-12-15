@@ -33,7 +33,7 @@ char* dbg_sw_to_string(ISO_SW sw);
 	dbg_print_hex(array, length);
 
 #define DBG_SW_TO_STRING(sw) \
-	dbg_sw_to_string(sw);
+	dbg_sw_to_string(sw)
 
 #define DBG_GET_AVAIL_MEMORY() \
 	get_available_memory()            // Notice the absence of semicolon
