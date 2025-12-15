@@ -33,8 +33,8 @@ add_subdirectory(src)
 add_subdirectory(src/platform)
 
 add_executable(${FUNFS_EXEC}
-	#main.c
-	src/tests_main.c
+	main.c
+	# src/tests_main.c
 )
 
 target_link_libraries(${FUNFS_EXEC}

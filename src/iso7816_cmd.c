@@ -1,7 +1,9 @@
 #include "iso7816_cmd.h"
-#include "flash_emu.h"
-#include "debug.h"
 #include "iso7816_helpers.h"
+
+#include "simulator/flash_emu.h"
+#include "simulator/debug.h"
+
 #include <string.h>
 
 static ValidityArea va;
@@ -82,14 +84,21 @@ iso_initialize(void)
 }
 
 ISO_SW
-iso_create_file(uint8_t* data, uint32_t data_len)
+iso_create_file(Apdu* apdu)
 {
 	DBG_PRINT_VARG("\ncall: %s", "iso_create_file")
 
-	ISO_SW result = SW_MEMORY_FULL;
+	uint8_t* cdata     = &apdu->buffer[APDU_OFFSET_CDATA];
+	uint16_t cdata_len = apdu->header.len;
+	ISO_SW result      = SW_INCORRECT_P1P2;
 	INode inode;
 
 	do {
+		if (apdu->header.p1 != 0x00 || apdu->header.p2 != 0x00) {
+			break;
+		}
+
+		result = SW_MEMORY_FULL;
 		// we cant't create more than 'inodes_capacity' files.
 		if (va.spr_blk.inodes_count >= va.spr_blk.inodes_capacity) {
 			break;
@@ -97,7 +106,7 @@ iso_create_file(uint8_t* data, uint32_t data_len)
 
 		memset((uint8_t*)&inode, 0x00, sizeof(INode));
 		
-		if ((result = hlp_parse_params(&inode, data, data_len)) != SW_OK) {
+		if ((result = hlp_parse_params(&inode, cdata, cdata_len)) != SW_OK) {
 			break;
 		}
 		
@@ -197,54 +206,69 @@ iso_select_by_name(const uint16_t fid)
 }
 
 ISO_SW
-iso_select_by_path(uint8_t* data, uint32_t data_len)
+iso_select_by_path(Apdu* apdu)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_select_by_path")
 
-	ISO_SW result = SW_FILE_NOT_FOUND;
-	uint8_t* ptr = data;
+	uint8_t* cdata     = &apdu->buffer[APDU_OFFSET_CDATA];
+	uint16_t cdata_len = apdu->header.len;
+	ISO_SW   result    = SW_INCORRECT_P1P2;
 	uint16_t fid;
 
 	do {
-		fid = hlp_get_short(ptr);
+		if (apdu->header.p1 != 0x00) {
+			break;
+		}
+
+		result = SW_FILE_NOT_FOUND;
+		fid    = hlp_get_short(cdata);
 		if ((result = iso_select_by_name(fid)) != SW_OK)
 			break; 
 
-		ptr += 2;
-	} while (data_len -= 2);
+		cdata += 2;
+	} while (cdata_len -= 2);
 	
 	return result;
 }
 
 ISO_SW
-iso_activate(uint8_t* data, uint32_t data_len)
+iso_activate(Apdu* apdu)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_activate")
 
-	ISO_SW result       = SW_OK;
-
+	ISO_SW   result    = SW_INCORRECT_P1P2;
 	uint16_t idx        = va.current_file.iNode;
 	INode* inode_array  = NULL;
 	INode* current_file = NULL;
 
-	if (idx == FID_RESERVED_1) {    // current EF isn't set. Thus we're about to
-		idx = va.current_dir.iNode; // activate the current DF.
-	}
+	do {
+		if (apdu->header.p1 != 0x00 || apdu->header.p2 != 0x00) {
+			break;
+		}
+		if (idx == FID_RESERVED_1) {    // current EF isn't set. Thus we're about to
+			idx = va.current_dir.iNode; // activate the current DF.
+		}
+	
+		inode_array  = (INode*)va.spr_blk.inodes_start;
+		current_file = (INode*)&inode_array[idx];
+	
+		current_file->lcs = LCS_ACTIVATED;
+		result = SW_OK;
+	} while (0);
 
-	inode_array  = (INode*)va.spr_blk.inodes_start;
-	current_file = (INode*)&inode_array[idx];
-
-	current_file->lcs = LCS_ACTIVATED;
 	return result;
 }
 
 ISO_SW
-iso_read_binary(uint8_t* data, uint32_t data_len)
+iso_read_binary(Apdu* apdu)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_read_binary")
 
-	ISO_SW result = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
-
+	uint8_t* cdata     = &apdu->buffer[APDU_OFFSET_CDATA];
+	uint16_t cdata_len = apdu->header.len;
+	ISO_SW   result    = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
+	uint32_t offset    = (((uint16_t)apdu->header.p1 << 8) | ((uint16_t)apdu->header.p2 & 0x00FF));
+	
 	uint16_t idx       = va.current_file.iNode;
 	INode* inode_array = (INode*)va.spr_blk.inodes_start;
 	INode* currentEf   = (INode*)&inode_array[idx];
@@ -254,7 +278,7 @@ iso_read_binary(uint8_t* data, uint32_t data_len)
 			break;
 		}
 
-		if ((result = hlp_read_data(currentEf->data, data, data_len)) != SW_OK) {
+		if ((result = hlp_read_data(currentEf->data + offset, cdata, cdata_len)) != SW_OK) {
 			break;
 		}
 
@@ -265,11 +289,14 @@ iso_read_binary(uint8_t* data, uint32_t data_len)
 }
 
 ISO_SW
-iso_write_binary(uint8_t* data, uint32_t data_len)
+iso_write_binary(Apdu* apdu)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_write_binary")
 	
-	ISO_SW result      = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
+	uint8_t* cdata     = &apdu->buffer[APDU_OFFSET_CDATA];
+	uint16_t cdata_len = apdu->header.len;
+	ISO_SW   result    = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
+	uint32_t offset    = (((uint16_t)apdu->header.p1 << 8) | ((uint16_t)apdu->header.p2 & 0x00FF));
 
 	uint16_t idx       = va.current_file.iNode;
 	INode* inode_array = (INode*)va.spr_blk.inodes_start;
@@ -279,8 +306,9 @@ iso_write_binary(uint8_t* data, uint32_t data_len)
 		if (currentEf->desc[0] != ft_EF) {
 			break;
 		}
+		result = SW_INCORRECT_P1P2;
 
-		if ((result = hlp_write_data(currentEf->data, data, data_len)) != SW_OK) {
+		if ((result = hlp_write_data(currentEf->data + offset, cdata, cdata_len)) != SW_OK) {
 			break;
 		}
 

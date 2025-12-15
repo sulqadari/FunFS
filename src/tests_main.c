@@ -1,6 +1,6 @@
 #include "iso7816_cmd.h"
 #include "iso7816_apdu.h"
-#include "flash_emu.h"
+#include "simulator/flash_emu.h"
 #include <string.h>
 
 uint8_t tempData[] = {0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
@@ -599,8 +599,6 @@ test_09(void)
 	return result;
 }
 
-extern Apdu apdu;
-
 static ISO_SW
 test_10(void)
 {
@@ -633,6 +631,90 @@ test_10(void)
 	DBG_PRINT_HEX(&apdu.buffer[APDU_OFFSET_CDATA], cmds[0].len - APDU_OFFSET_CDATA)
 
 	free(cmds[0].cmd);
+	return result;
+}
+
+static ISO_SW
+test_11(void)
+{
+	ISO_SW result = SW_UNKNOWN;
+	uint16_t len = 0;
+	cmd_t cmds[9];
+	uint8_t idx = 0;
+
+	printf("====================TEST 09\n");
+	do {
+		if (iso_initialize() != SW_OK) {
+			printf("ERROR: failed to initialize file system\n");
+			break;
+		}
+
+		cmds[idx].cmd = hex_to_bytes("622D 8302 3F00 8201 38 8A01 01 8D02 4003 8C07 6FFFFFFFFFFFFF AB14 8401DA9700840126970084012897008401249700", &len);
+		cmds[idx++].len = len;
+		cmds[idx].cmd = hex_to_bytes("6217 8302 3F01 8202 0100 8002 05 8A01 01 8C06 6BFFFFFF1111", &len);
+		cmds[idx++].len = len;
+		
+		cmds[idx].cmd = hex_to_bytes("3F00 3F01", &len);
+		cmds[idx++].len = len;
+		
+		cmds[idx].cmd = hex_to_bytes("01", &len);
+		cmds[idx++].len = len;
+		
+		cmds[idx].cmd = hex_to_bytes("020304", &len);
+		cmds[idx++].len = len;
+
+		cmds[idx].cmd = hex_to_bytes("FE", &len);
+		cmds[idx++].len = len;
+		
+		cmds[idx].cmd = hex_to_bytes("FDFCFB", &len);
+		cmds[idx++].len = len;
+
+		uint8_t i;
+		for (i = 0; i < idx - 3; ++i) {
+			printf("\nCDATA: ");
+			DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
+			
+			if ((result = iso_create_file(cmds[i].cmd, cmds[i].len)) != SW_OK) {
+				char* str = DBG_SW_TO_STRING(result)
+				printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
+				break;
+			}
+		}
+
+		if (result != SW_OK)
+			break;
+		
+		printf("\nCDATA: ");
+		DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
+		
+		if ((result = iso_select_by_path(cmds[i].cmd, cmds[i].len)) != SW_OK) {
+			char* str = DBG_SW_TO_STRING(result)
+			printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
+			break;
+		}
+		i++;
+		if (result != SW_OK)
+			break;
+		
+		for (; i < idx; ++i) {
+			printf("\nCDATA: ");
+			DBG_PRINT_HEX(cmds[i].cmd, cmds[i].len)
+			
+			if ((result = iso_write_binary(cmds[i].cmd, cmds[i].len)) != SW_OK) {
+				char* str = DBG_SW_TO_STRING(result)
+				printf("ERROR: command [%d] failed with SW %04X (%s)\n", i, result, str);
+				break;
+			}
+		}
+
+	} while (0);
+
+	for (uint8_t i = 0; i < idx; ++i) {
+		free(cmds[i].cmd);
+		cmds[i].len = 0;
+	}
+	
+	mm_save_image();
 	return result;
 }
 

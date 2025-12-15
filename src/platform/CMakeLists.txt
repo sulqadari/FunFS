@@ -1,4 +1,6 @@
 add_library(${FUNFS_PLATFORM}
+	${CMAKE_CURRENT_SOURCE_DIR}/simulator/debug.c
+	${CMAKE_CURRENT_SOURCE_DIR}/simulator/flash_emu.c
 	${CMAKE_CURRENT_SOURCE_DIR}/simulator/simu_udp.c
 )
 

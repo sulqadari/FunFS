@@ -2,7 +2,8 @@
 #define FUNFS_ISO7816_HELPER_H
 
 #include "iso7816_cmd.h"
-#include "flash_emu.h"
+
+#include "simulator/flash_emu.h"
 
 /** pointer to the beginning of DF_Payload field. */
 #define df_children_count(expr) (uint32_t)&((DF_Payload*)expr->data)->children_count

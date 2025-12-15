@@ -4,13 +4,13 @@
 static const char* FLASH_BINARY = "FunFS.bin";
 static FILE*       aFile        = NULL;
 
+static uint16_t page_ram [PAGE_SIZE / 2];
 static uint16_t flash_emu[FLASH_SIZE_TOTAL / 2];
-static uint32_t fs_start_addr = 0x00;
-static uint32_t fs_upper_addr = 0x00;
-static uint16_t* first_page = NULL;
 
-static uint16_t page_ram[PAGE_SIZE / 2];
-static uint32_t available_memory = 0;
+static uint32_t fs_start_addr    = 0x00;
+static uint32_t fs_upper_addr    = 0x00;
+static uint32_t available_memory = 0x00;
+static uint16_t* first_page      = NULL;
 
 /** Defines memory area which is available for the user space.
  * 
@@ -271,25 +271,6 @@ mm_open_image(void)
 
 	} while (0);
 
-	return result;
-}
-
-static mm_Result
-update_image(void)
-{
-	mm_Result result = mm_Ok;
-
-	do {
-		if (aFile == NULL) {
-			fprintf(stderr, "ERROR: can't update %s binary because file isn't openned yet.\n", FLASH_BINARY);
-			result = mm_fopenErr;
-			break;
-		}
-		
-		
-	
-	} while (0);
-	// DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
 	return result;
 }
 

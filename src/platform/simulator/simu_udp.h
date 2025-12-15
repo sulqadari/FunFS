@@ -13,6 +13,5 @@
 #include "iso7816_apdu.h"
 
 uint16_t udp_server_init(void);
-uint16_t udp_server_run(Apdu* apdu);
 
 #endif /* FUNFS_SIMU_UDP_H */
