@@ -71,12 +71,12 @@ typedef struct {
 typedef struct {
 	uint16_t iNode;
 	uint16_t fid;
-} DF_Record;
+} FileID;
 
 typedef struct {
-	DF_Record  parent_dir;
-	DF_Record  current_dir;
-	DF_Record  current_file;
+	FileID     parent_dir;
+	FileID     curr_dir;
+	FileID     curr_file;
 	SuperBlock spr_blk;
 	uint32_t   spr_blk_addr;
 } ValidityArea;
@@ -87,7 +87,7 @@ typedef struct {
 
 typedef struct {
 	uint32_t children_count;
-	DF_Record children_list[DF_CHILDREN_LIST_LEN];
-} DF_Payload;
+	FileID  children_list[DF_CHILDREN_LIST_LEN];
+} FolderData;
 
 #endif /* FUNFS_ISO7816_H */

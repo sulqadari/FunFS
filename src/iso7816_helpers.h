@@ -5,10 +5,10 @@
 
 #include "simulator/flash_emu.h"
 
-/** pointer to the beginning of DF_Payload field. */
-#define df_children_count(expr) (uint32_t)&((DF_Payload*)expr->data)->children_count
-/** pointer to the DF_Payload::children_list array */
-#define df_children_list(expr) ((DF_Payload*)expr->data)->children_list
+/** pointer to the beginning of FolderData field. */
+#define df_children_count(expr) (uint32_t)&((FolderData*)expr->data)->children_count
+/** pointer to the FolderData::children_list array */
+#define df_children_list(expr) ((FolderData*)expr->data)->children_list
 
 void hlp_va_set_parent_df(ValidityArea* va, uint16_t fid, uint16_t node);
 void hlp_va_set_current_df(ValidityArea* va, uint16_t fid, uint16_t node);

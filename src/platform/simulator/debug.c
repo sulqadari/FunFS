@@ -98,8 +98,8 @@ dbg_print_va(ValidityArea* va)
 		"    node: %02X\n"
 		"    fid:  %02X\n\n",
 		va->parent_dir.iNode, va->parent_dir.fid,
-		va->current_dir.iNode, va->current_dir.fid,
-		va->current_file.iNode, va->current_file.fid
+		va->curr_dir.iNode, va->curr_dir.fid,
+		va->curr_file.iNode, va->curr_file.fid
 	);
 }
 

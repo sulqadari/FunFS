@@ -91,7 +91,7 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 	return result;
 }
 
-/** Adds to the DF_Payload::entries array an entry about newly created file */
+/** Adds to the FolderData::entries array an entry about newly created file */
 static ISO_SW
 add_record_to_parent(ValidityArea* va, INode* current)
 {
@@ -100,7 +100,7 @@ add_record_to_parent(ValidityArea* va, INode* current)
 	// choose the parent depending on file type to be created:
 	// If we're about to create an EF, then we should start updating the 'size' field from current folder.
 	// Otherwise we need to proceed from parent folder.
-	uint16_t idx       = (current->desc[0] == ft_DF) ? va->parent_dir.iNode : va->current_dir.iNode;
+	uint16_t idx       = (current->desc[0] == ft_DF) ? va->parent_dir.iNode : va->curr_dir.iNode;
 	INode* inode_array = (INode*)va->spr_blk.inodes_start;
 	INode* currentDf   = (INode*)&inode_array[idx];
 	
@@ -112,9 +112,9 @@ add_record_to_parent(ValidityArea* va, INode* current)
 			break;
 		}
 		
-		DF_Record newRecord = {.iNode = va->spr_blk.inodes_count, .fid = current->fid};
+		FileID newRecord = {.iNode = va->spr_blk.inodes_count, .fid = current->fid};
 		// write the record about a new child of current folder.
-		if ((result = hlp_write_data((uint32_t)&df_children_list(currentDf)[count++], (uint8_t*)&newRecord, sizeof(DF_Record))) != SW_OK) {
+		if ((result = hlp_write_data((uint32_t)&df_children_list(currentDf)[count++], (uint8_t*)&newRecord, sizeof(FileID))) != SW_OK) {
 			break;
 		}
 		
@@ -170,8 +170,8 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 			break;
 		}
 
-		// The size of DF is always 256 bytes.
-		new_df_node->size = sizeof(DF_Payload);
+		// The size of DF is defined at compilation stage
+		new_df_node->size = sizeof(FolderData);
 		// allocate a data block for the newly created DF
 		if ((new_df_node->data = mm_allocate(new_df_node->size)) == 0x00) {
 			result = SW_MEMORY_FULL;
@@ -181,17 +181,17 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 		DBG_SET_AVAIL_MEMORY(new_df_node->size)
 
 		// MIND THE SEQUENCE! firstable update the parent, and only after current.
-		hlp_va_set_parent_df(va, va->current_dir.fid, va->current_dir.iNode); // Current dir becomes 'parent'
+		hlp_va_set_parent_df(va, va->curr_dir.fid, va->curr_dir.iNode); // Current dir becomes 'parent'
 		hlp_va_set_current_df(va, new_df_node->fid, va->spr_blk.inodes_count);  // New one becomes 'current'
 		
 		// In each newly created dir, the first two records goes for itself and its parent
 		uint32_t count = 0;
 
 		
-		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->current_dir, sizeof(DF_Record))) != SW_OK) {
+		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->curr_dir, sizeof(FileID))) != SW_OK) {
 			break;
 		}
-		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(DF_Record))) != SW_OK) {
+		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(FileID))) != SW_OK) {
 			break;
 		}
 
@@ -237,15 +237,15 @@ hlp_va_set_parent_df(ValidityArea* va, uint16_t fid, uint16_t node)
 void
 hlp_va_set_current_df(ValidityArea* va, uint16_t fid, uint16_t node)
 {
-	va->current_dir.fid   = fid;
-	va->current_dir.iNode = node;
+	va->curr_dir.fid   = fid;
+	va->curr_dir.iNode = node;
 }
 
 void
 hlp_va_set_current_ef(ValidityArea* va, uint16_t fid, uint16_t node)
 {
-	va->current_file.fid   = fid;
-	va->current_file.iNode = node;
+	va->curr_file.fid   = fid;
+	va->curr_file.iNode = node;
 }
 
 static ISO_SW
@@ -427,7 +427,7 @@ hlp_allocate_data_block(ValidityArea* va, INode* inode)
 		if (inode->fid == FID_MASTER_FILE) {
 			break;
 		}
-		// update DF_Record array of its parent
+		// update FileID array of its parent
 		if ((result = add_record_to_parent(va, inode)) != SW_OK) {
 			break;
 		}

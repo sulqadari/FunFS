@@ -16,11 +16,11 @@ iso_initialize(void)
 		"VA                     size: %d bytes\n"
 		"SuperBlock             size: %d bytes\n"
 		"Inode                  size: %d bytes\n"
-		"Max number of entries in DF: %d 'DF_Record's\n",
+		"Max number of entries in DF: %d 'FileID's\n",
 		sizeof(ValidityArea),
 		sizeof(SuperBlock),
 		sizeof(INode),
-		sizeof(DF_Payload) / sizeof(DF_Record) - 1
+		sizeof(FolderData) / sizeof(FileID) - 1
 	)
 	
 	ISO_SW result = SW_MEMORY_FAILURE;
@@ -140,7 +140,7 @@ iso_select_by_name(const uint16_t fid)
 	DBG_PRINT_VARG("\ncall: %s(%04X)\n\n", "iso_select_by_name", fid)
 	ISO_SW result = SW_UNKNOWN;
 
-	uint16_t idx       = va.current_dir.iNode;
+	uint16_t idx       = va.curr_dir.iNode;
 	INode* inode_array = (INode*)va.spr_blk.inodes_start;
 	INode* currentDf   = (INode*)&inode_array[idx];
 
@@ -160,12 +160,12 @@ iso_select_by_name(const uint16_t fid)
 			break;
 		}
 
-		DF_Record next;
+		FileID next;
 		uint32_t i;
 
 		for (i = 0; i < count; ++i) {
 			// read from current DF's payload region an info about subsequent child. 
-			if ((result = hlp_read_data((uint32_t)&df_children_list(currentDf)[i], (uint8_t*)&next, sizeof(DF_Record))) != SW_OK) {
+			if ((result = hlp_read_data((uint32_t)&df_children_list(currentDf)[i], (uint8_t*)&next, sizeof(FileID))) != SW_OK) {
 				break;
 			}
 
@@ -250,22 +250,22 @@ iso_activate(Apdu* apdu)
 	DBG_PRINT_VARG("call: %s\n", "iso_activate")
 
 	ISO_SW   result    = SW_INCORRECT_P1P2;
-	uint16_t idx        = va.current_file.iNode;
+	uint16_t idx        = va.curr_file.iNode;
 	INode* inode_array  = NULL;
-	INode* current_file = NULL;
+	INode* curr_file = NULL;
 
 	do {
 		if (apdu->header.p1 != 0x00 || apdu->header.p2 != 0x00) {
 			break;
 		}
 		if (idx == FID_RESERVED_1) {    // current EF isn't set. Thus we're about to
-			idx = va.current_dir.iNode; // activate the current DF.
+			idx = va.curr_dir.iNode; // activate the current DF.
 		}
 	
 		inode_array  = (INode*)va.spr_blk.inodes_start;
-		current_file = (INode*)&inode_array[idx];
+		curr_file = (INode*)&inode_array[idx];
 	
-		current_file->lcs = LCS_ACTIVATED;
+		curr_file->lcs = LCS_ACTIVATED;
 		result = SW_OK;
 	} while (0);
 
@@ -282,7 +282,7 @@ iso_read_binary(Apdu* apdu)
 	ISO_SW   result    = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
 	uint32_t offset    = (((uint16_t)apdu->header.p1 << 8) | ((uint16_t)apdu->header.p2 & 0x00FF));
 	
-	uint16_t idx       = va.current_file.iNode;
+	uint16_t idx       = va.curr_file.iNode;
 	INode* inode_array = (INode*)va.spr_blk.inodes_start;
 	INode* currentEf   = (INode*)&inode_array[idx];
 
@@ -311,7 +311,7 @@ iso_write_binary(Apdu* apdu)
 	ISO_SW   result    = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
 	uint32_t offset    = (((uint16_t)apdu->header.p1 << 8) | ((uint16_t)apdu->header.p2 & 0x00FF));
 
-	uint16_t idx       = va.current_file.iNode;
+	uint16_t idx       = va.curr_file.iNode;
 	INode* inode_array = (INode*)va.spr_blk.inodes_start;
 	INode* currentEf   = (INode*)&inode_array[idx];
 
