@@ -11,7 +11,7 @@ interrupt_handler(int num)
 {
 	udp_server_close();
 	mm_save_image();
-	DBG_PRINT_VARG("%s", "Done.\n");
+	DBG_PRINT_VARG("\n%s\n", "Done.");
 	exit(0);
 }
 
@@ -22,14 +22,13 @@ main(int argc, char* argv[])
 	Apdu apdu;
 
 	udp_server_init();
-	
+	if (signal(SIGINT, interrupt_handler) == SIG_ERR) {
+		DBG_PRINT_VARG("%s", "ERROR: can't catch SIGINT\n");
+	}
+
 	if ((sw = iso_initialize()) != SW_OK) {
 		DBG_PRINT_VARG("ERROR: 'iso_initialize()' function failed with SW %04X (%s)\n", sw, DBG_SW_TO_STRING(sw));
 		exit(1);
-	}
-
-	if (signal(SIGINT, interrupt_handler) == SIG_ERR) {
-		DBG_PRINT_VARG("%s", "ERROR: can't catch SIGINT\n");
 	}
 
 	while (1) {

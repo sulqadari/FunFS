@@ -1,4 +1,6 @@
 #include <string.h>
+#include <signal.h>
+
 #include "flash_emu.h"
 
 static const char* FLASH_BINARY = "FunFS.bin";
@@ -120,7 +122,7 @@ mm_write(uint32_t offset, uint16_t half_word)
 
 		// DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
 
-		exit(1);
+		raise(SIGINT);
 		return mm_writeErr;
 	}
 

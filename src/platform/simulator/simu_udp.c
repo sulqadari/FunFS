@@ -31,6 +31,7 @@ udp_server_init(void)
 
 	if (bind(udp_socket, (const struct sockaddr*)&server_addr, sizeof(struct sockaddr_in)) < 0) {
 		printf("Failed to assign the server address to the upd socket.\n");
+		close(udp_socket);
 		exit(1);
 	}
 

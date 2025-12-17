@@ -46,11 +46,28 @@ def hex_to_bytes(hex_str: str):
 
 	return bytes_list
 
-def byte_to_hex(ar: bytearray):
+def byte_to_hex(ar: bytearray, is_cdata = True):
+	delimiter = 0
 	rst = ''
-	for a in ar:
-		rst += "{:02x}".format(a)
-	return rst
+
+	if is_cdata == True:
+		for a in ar:
+			if delimiter == 5:
+				rst += " "
+			
+			delimiter = delimiter + 1
+			rst += "{:02x}".format(a)
+		return rst
+	else:
+		for a in ar:
+			if delimiter == 32:
+				delimiter = 0
+				rst += "\n   "
+			
+			delimiter = delimiter + 1
+			rst += "{:02x}".format(a)
+		return rst
+
 
 def udp_connect():
 	global udp_socket
@@ -61,7 +78,7 @@ def udp_disconnect():
 	udp_socket.close()
 
 def udp_apdu_send(cdata, expected_sw = 0x9000):
-	print(">> " + byte_to_hex(cdata))
+	print(">> " + byte_to_hex(cdata, True))
 
 	udp_socket.send(bytearray(cdata))
 	rdata     = udp_socket.recv(263)       # get array with responce
@@ -69,12 +86,12 @@ def udp_apdu_send(cdata, expected_sw = 0x9000):
 	ret_val   = rdata[:-2]                 # a list of bytes (except SW) to be returned to the user
 	actual_sw = int.from_bytes(rdata[-2:]) # get SW bytes
 	rdata     = rdata[:-2]                 # truncate SW bytes from incoming array
-	rdata     = byte_to_hex(rdata)         # convert byte array into string
+	rdata     = byte_to_hex(rdata, False)  # convert byte array into string
 
-	print(f"<< {rdata} {actual_sw:X}")
+	print(f"<< {rdata}  {actual_sw:X}")
 	
 	if actual_sw != expected_sw:
-		print(f"ERROR: expected {expected_sw:X}, got {actual_sw:X}")
+		print(f"ERROR: expected {expected_sw:X}, but got {actual_sw:X}")
 		
 		udp_disconnect()
 		sys.exit(1)

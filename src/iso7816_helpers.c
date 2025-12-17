@@ -59,8 +59,8 @@ hlp_read_data(uint32_t offset, uint8_t* data, uint32_t len)
 			break;
 		}
 
+		data[i + 0] = (uint8_t)( half_word       & 0xFF);
 		data[i + 1] = (uint8_t)((half_word >> 8) & 0xFF);
-		data[i]     = (uint8_t)( half_word       & 0xFF);
 		half_word   = 0;
 	}
 
@@ -75,7 +75,6 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 	uint16_t half_word = 0;
 
 	do {
-		// NOTE: this for loop reduces efficiency of this function to O(n * 2)
 		// 1. check if the area we're about to write into is clear or not
 		for (uint32_t i = 0; i < len; i += 2) {
 			if ((result = hlp_read_data(offset + i, (uint8_t*)&half_word, 2)) != SW_OK) {
@@ -102,8 +101,8 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 		} else {
 			half_word = 0;
 			for (uint32_t i = 0; i < len; i += 2) {
+				half_word |= (uint16_t)data[i + 0] & 0x00FF;
 				half_word |= (uint16_t)data[i + 1] << 8;
-				half_word |= (uint16_t)data[i] & 0x00FF;
 
 				if (mm_write(offset + i, half_word) != mm_Ok) {
 					result = SW_MEMORY_FAILURE;
