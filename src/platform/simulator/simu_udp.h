@@ -9,12 +9,10 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include "iso7816_apdu.h"
-
 uint16_t udp_server_init(void);
 void     udp_server_close(void);
 
-void udp_receive_cdata(Apdu* apdu);
-void udp_send_cdata(Apdu* apdu);
+void udp_receive_cdata(uint8_t* cdata);
+void udp_send_cdata(uint8_t* rdata, uint16_t len);
 
 #endif /* FUNFS_SIMU_UDP_H */

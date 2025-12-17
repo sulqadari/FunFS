@@ -126,10 +126,9 @@ iso_create_file(Apdu* apdu)
 		DBG_PRINT_INODE(&inode)
 		result = SW_OK;
 	} while (0);
-
 	
 	DBG_PRINT_VARG("\navailable memory: %d\n", DBG_GET_AVAIL_MEMORY());
-	
+
 	return result;
 }
 
@@ -275,9 +274,7 @@ ISO_SW
 iso_read_binary(Apdu* apdu)
 {
 	DBG_PRINT_VARG("call: %s\n", "iso_read_binary")
-
-	uint8_t* cdata     = &apdu->buffer[APDU_OFFSET_CDATA];
-	uint16_t cdata_len = apdu->header.len;
+	uint16_t data_len  = apdu->header.len;
 	ISO_SW   result    = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
 	uint32_t offset    = (((uint16_t)apdu->header.p1 << 8) | ((uint16_t)apdu->header.p2 & 0x00FF));
 	
@@ -290,10 +287,11 @@ iso_read_binary(Apdu* apdu)
 			break;
 		}
 
-		if ((result = hlp_read_data(currentEf->data + offset, cdata, cdata_len)) != SW_OK) {
+		if ((result = hlp_read_data(currentEf->data + offset, apdu->buffer, data_len)) != SW_OK) {
 			break;
 		}
-
+		
+		apdu->resp_len = data_len;
 		result = SW_OK;
 	} while (0);
 

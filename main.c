@@ -40,7 +40,7 @@ main(int argc, char* argv[])
 		sw = apdu_process(&apdu);
 
 		// return data (if any) and SW
-		apdu_send_rdata(&apdu, sw);
+		apdu_send_rdata(apdu.buffer, apdu.resp_len, sw);
 	}
 
 	while (1) { volatile int i = 0; (void)i++; }

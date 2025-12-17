@@ -5,7 +5,6 @@
 ISO_SW
 apdu_process(Apdu* apdu)
 {
-	uint8_t ins = 0x00;
 	ISO_SW  sw  = SW_CLA_NOT_SUPPORTED;
 
 	do {
@@ -13,7 +12,7 @@ apdu_process(Apdu* apdu)
 			break;
 		}
 		
-		switch (ins) {
+		switch (apdu->header.ins) {
 			case APDU_INS_CREATE_FILE : {
 				sw = iso_create_file(apdu);
 			} break;
@@ -41,15 +40,17 @@ apdu_process(Apdu* apdu)
 void
 apdu_receive_cdata(Apdu* apdu)
 {
-	udp_receive_cdata(apdu);
+	memset(apdu->buffer, 0x00, APDU_BUFFER_LEN);
+	udp_receive_cdata(apdu->buffer);
+	apdu->resp_len = 0;
 }
 
 void
-apdu_send_rdata(Apdu* apdu, ISO_SW sw)
+apdu_send_rdata(uint8_t* rdata, uint16_t len, ISO_SW sw)
 {
-	apdu->buffer[apdu->header.len]     = sw >> 8;
-	apdu->buffer[apdu->header.len + 1] = sw & 0xFF;
-	apdu->header.len += 2;
+	rdata[len]     = sw >> 8;
+	rdata[len + 1] = sw & 0xFF;
+	len += 2;
 
-	udp_send_cdata(apdu);
+	udp_send_cdata(rdata, len);
 }

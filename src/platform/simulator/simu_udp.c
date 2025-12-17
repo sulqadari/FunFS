@@ -1,8 +1,10 @@
 #include "simu_udp.h"
+#include "flash_emu.h"
 #include "debug.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <signal.h>
 
 static struct sockaddr_in server_addr = {0};
 static struct sockaddr_in client_addr = {0};
@@ -43,12 +45,11 @@ udp_server_close(void)
 }
 
 void
-udp_receive_cdata(Apdu* apdu)
+udp_receive_cdata(uint8_t* cdata)
 {
-	memset(apdu->buffer, 0x00, APDU_BUFFER_LEN);
 	ssize_t bytes_read = recvfrom(
 							udp_socket,
-							apdu->buffer,
+							cdata,
 							APDU_BUFFER_LEN,
 							MSG_WAITALL,
 							(struct sockaddr*)&client_addr,
@@ -56,23 +57,26 @@ udp_receive_cdata(Apdu* apdu)
 						);
 	
 	if (bytes_read < 0) {
-
+		DBG_PRINT_VARG("%s\n", "ERROR: UDP failed to retrieve a data from the client")
+		raise(SIGINT);
 	}
 
-	apdu->header.len = (uint16_t)bytes_read;
-	
-	DBG_PRINT_HEX(apdu->buffer, apdu->header.len)
+	DBG_PRINT_VARG("%s", "<< ")
+	DBG_PRINT_HEX(cdata, bytes_read)
 }
 
 void
-udp_send_cdata(Apdu* apdu)
+udp_send_cdata(uint8_t* rdata, uint16_t len)
 {
 	sendto(
 		udp_socket,
-		apdu->buffer,
-		apdu->header.len,
+		rdata,
+		len,
 		MSG_CONFIRM,
 		(struct sockaddr*)&client_addr,
 		socket_len
 	);
+
+	DBG_PRINT_VARG("%s", ">> ")
+	DBG_PRINT_HEX(rdata, len)
 }
