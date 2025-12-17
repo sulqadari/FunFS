@@ -67,7 +67,6 @@ dbg_print_inode(INode* node)
 	);
 	print_array(node->aid, 16,      "AID         ");
 	print_array(node->compact, 7,   "compact SA  ");
-	print_array(node->expanded, 20, "expanded SA ");
 	printf("\n");
 }
 

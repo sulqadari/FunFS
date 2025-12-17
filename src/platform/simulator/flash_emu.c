@@ -33,12 +33,12 @@ mm_set_bounds(void)
 	DBG_PRINT_VARG(
 		"\n"
 		"flash size:              %d bytes\n"
-		"page size:               %d bytes\n"
+		"page  size:              %d bytes\n"
 		"pages total:             %d bytes\n"
 		"transaction buffer size: %d bytes\n"
-		"flash start address:     %08X\n"
-		"program start address:   %08X\n"
-		"flash upper bound:       %08X\n\n",
+		"flash   start address:   0x%08x\n"
+		"program start address:   0x%08x\n"
+		"flash   upper bound:     0x%08x\n\n",
 		FLASH_SIZE_TOTAL,
 		PAGE_SIZE,
 		PAGES_TOTAL,

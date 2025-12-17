@@ -12,16 +12,6 @@ ISO_SW
 iso_initialize(void)
 {
 	DBG_PRINT_VARG("\ncall: %s\n\n", "iso_initialize")
-	DBG_PRINT_VARG(
-		"VA                     size: %d bytes\n"
-		"SuperBlock             size: %d bytes\n"
-		"Inode                  size: %d bytes\n"
-		"Max number of entries in DF: %d 'FileID's\n",
-		sizeof(ValidityArea),
-		sizeof(SuperBlock),
-		sizeof(INode),
-		sizeof(FolderData) / sizeof(FileID) - 1
-	)
 	
 	ISO_SW result = SW_MEMORY_FAILURE;
 	do {
@@ -68,11 +58,20 @@ iso_initialize(void)
 	} while (0);
 
 	DBG_PRINT_VARG(
-		"\nSuperBlock\n"
-		"super block start:     %04X\n"
-		"inodes_start:          %04X\n"
-		"inodes table capacity: %d 'INode's\n"
-		"available memory:      %d bytes\n\n",
+		"VA           size:       %d bytes\n"
+		"Inode        size:       %d bytes\n"
+		"Max entries in DF:       %d 'FileID's\n",
+		sizeof(ValidityArea),
+		sizeof(INode),
+		sizeof(FolderData) / sizeof(FileID) - 1
+	)
+	DBG_PRINT_VARG(
+		"\nSuperBlock size:         %d bytes\n"
+		"  super block start:     0x%04x\n"
+		"  inodes_start:          0x%04x\n"
+		"  inodes table capacity: %d 'INode's\n\n"
+		"available memory:        %d bytes\n\n",
+		sizeof(SuperBlock),
 		va.spr_blk_addr,
 		va.spr_blk.inodes_start,
 		va.spr_blk.inodes_capacity,

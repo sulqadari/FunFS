@@ -17,6 +17,33 @@
 	(expr += len)
 
 
+uint16_t
+hlp_get_short(uint8_t* buff)
+{
+	return (((uint16_t)buff[0] << 8) | ((uint16_t)buff[1] & 0xFF));
+}
+
+void
+hlp_va_set_parent_df(ValidityArea* va, uint16_t fid, uint16_t node)
+{
+	va->parent_dir.fid   = fid;
+	va->parent_dir.iNode = node;
+}
+
+void
+hlp_va_set_current_df(ValidityArea* va, uint16_t fid, uint16_t node)
+{
+	va->curr_dir.fid   = fid;
+	va->curr_dir.iNode = node;
+}
+
+void
+hlp_va_set_current_ef(ValidityArea* va, uint16_t fid, uint16_t node)
+{
+	va->curr_file.fid   = fid;
+	va->curr_file.iNode = node;
+}
+
 ISO_SW
 hlp_read_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
@@ -91,163 +118,6 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 	return result;
 }
 
-/** Adds to the FolderData::entries array an entry about newly created file */
-static ISO_SW
-add_record_to_parent(ValidityArea* va, INode* current)
-{
-	ISO_SW result = SW_OK;
-
-	// choose the parent depending on file type to be created:
-	// If we're about to create an EF, then we should start updating the 'size' field from current folder.
-	// Otherwise we need to proceed from parent folder.
-	uint16_t idx       = (current->desc[0] == ft_DF) ? va->parent_dir.iNode : va->curr_dir.iNode;
-	INode* inode_array = (INode*)va->spr_blk.inodes_start;
-	INode* currentDf   = (INode*)&inode_array[idx];
-	
-	do {
-		uint32_t count = 0;
-		
-		// get the 'count' of parent folder. It will be used as an index into 'entries' array
-		if ((result = hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != SW_OK) {
-			break;
-		}
-		
-		FileID newRecord = {.iNode = va->spr_blk.inodes_count, .fid = current->fid};
-		// write the record about a new child of current folder.
-		if ((result = hlp_write_data((uint32_t)&df_children_list(currentDf)[count++], (uint8_t*)&newRecord, sizeof(FileID))) != SW_OK) {
-			break;
-		}
-		
-		// update the 'count' of parent folder.
-		if ((result = hlp_write_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != SW_OK) {
-			break;
-		}
-
-	} while (0);
-
-	return result;
-}
-
-/** traverse the path from this DF right to the MF,
- * increasing the inode->size value of each parent folder. */
-static ISO_SW
-update_parent_size(ValidityArea* va, INode* current)
-{
-	ISO_SW result = SW_OK;
-	INode* inode_array = (INode*)va->spr_blk.inodes_start;
-	uint16_t idx = va->parent_dir.iNode;
-	uint16_t fid = va->parent_dir.fid;
-
-	do {
-		INode* parent = (INode*)&inode_array[idx];
-		if (parent->desc[0] != ft_DF) {
-			break;
-		}
-		// add the size of newly create folder to the size of subsequent parent folder.
-		uint16_t updated_size = parent->size + current->size;
-		if ((result = hlp_write_data((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != SW_OK) {
-			break;
-		}
-
-		// get the inode index of subsequent parent.
-		idx = df_children_list(parent)[1].iNode;
-		fid = df_children_list(parent)[1].fid;
-
-	} while (fid != 0x00); // fid=FFFF means we've reached the end of file hierarchy
-
-	return result;
-}
-
-static ISO_SW
-data_block_for_df(ValidityArea* va, INode* new_df_node)
-{
-	ISO_SW result = SW_OK;
-
-	do {
-		// Assigning 3F00 to some another file is forbidden.
-		if ((va->spr_blk.inodes_count != 0x00) && (new_df_node->fid == FID_MASTER_FILE)) {
-			result = SW_DF_NAME_ALREADY_EXISTS;
-			break;
-		}
-
-		// The size of DF is defined at compilation stage
-		new_df_node->size = sizeof(FolderData);
-		// allocate a data block for the newly created DF
-		if ((new_df_node->data = mm_allocate(new_df_node->size)) == 0x00) {
-			result = SW_MEMORY_FULL;
-			break;
-		}
-
-		DBG_SET_AVAIL_MEMORY(new_df_node->size)
-
-		// MIND THE SEQUENCE! firstable update the parent, and only after current.
-		hlp_va_set_parent_df(va, va->curr_dir.fid, va->curr_dir.iNode); // Current dir becomes 'parent'
-		hlp_va_set_current_df(va, new_df_node->fid, va->spr_blk.inodes_count);  // New one becomes 'current'
-		
-		// In each newly created dir, the first two records goes for itself and its parent
-		uint32_t count = 0;
-
-		
-		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->curr_dir, sizeof(FileID))) != SW_OK) {
-			break;
-		}
-		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(FileID))) != SW_OK) {
-			break;
-		}
-
-		result = hlp_write_data(df_children_count(new_df_node), (uint8_t*)&count,  sizeof(uint32_t));
-
-	} while (0);
-
-	return result;
-}
-
-static ISO_SW
-data_block_for_ef(ValidityArea* va, INode* new_ef_node)
-{
-	ISO_SW result = SW_OK;
-	do {
-		// allocate a data block for the newly created DF
-		if ((new_ef_node->data = mm_allocate(new_ef_node->size)) == 0x00) {
-			result = SW_MEMORY_FULL;
-			break;
-		}
-		
-		DBG_SET_AVAIL_MEMORY(new_ef_node->size)
-
-		hlp_va_set_current_ef(va, new_ef_node->fid, va->spr_blk.inodes_count);
-	} while (0);
-
-	return result;
-}
-
-uint16_t
-hlp_get_short(uint8_t* buff)
-{
-	return (((uint16_t)buff[0] << 8) | ((uint16_t)buff[1] & 0xFF));
-}
-
-void
-hlp_va_set_parent_df(ValidityArea* va, uint16_t fid, uint16_t node)
-{
-	va->parent_dir.fid   = fid;
-	va->parent_dir.iNode = node;
-}
-
-void
-hlp_va_set_current_df(ValidityArea* va, uint16_t fid, uint16_t node)
-{
-	va->curr_dir.fid   = fid;
-	va->curr_dir.iNode = node;
-}
-
-void
-hlp_va_set_current_ef(ValidityArea* va, uint16_t fid, uint16_t node)
-{
-	va->curr_file.fid   = fid;
-	va->curr_file.iNode = node;
-}
-
 static ISO_SW
 check_df(INode* inode)
 {
@@ -319,7 +189,6 @@ hlp_check_consistency(INode* inode)
 	return result;
 }
 
-/** TODO: implement parameters consistency check */
 ISO_SW
 hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 {
@@ -382,13 +251,8 @@ hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 					inode->se = hlp_get_short(curr);
 					advance(curr);
 				} break;
-				case 0xAB: {
-					assert_leq(len, 20, SW_INCORRECT_PARAMS_IN_CDATA);
-					memcpy(&inode->expanded, curr, len);
-					advance(curr);
-				} break;
 				default: {
-					result = SW_DATA_NOT_USABLE;
+					result = SW_INCORRECT_PARAMS_IN_CDATA;
 				} break;
 			}
 
@@ -400,6 +264,139 @@ hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 
 	return result;
 }
+
+
+static ISO_SW
+data_block_for_df(ValidityArea* va, INode* new_df_node)
+{
+	ISO_SW result = SW_OK;
+
+	do {
+		// Assigning 3F00 to some another file is forbidden.
+		if ((va->spr_blk.inodes_count != 0x00) && (new_df_node->fid == FID_MASTER_FILE)) {
+			result = SW_DF_NAME_ALREADY_EXISTS;
+			break;
+		}
+
+		// The size of DF is defined at compilation stage
+		new_df_node->size = sizeof(FolderData);
+		// allocate a data block for the newly created DF
+		if ((new_df_node->data = mm_allocate(new_df_node->size)) == 0x00) {
+			result = SW_MEMORY_FULL;
+			break;
+		}
+
+		DBG_SET_AVAIL_MEMORY(new_df_node->size)
+
+		// MIND THE SEQUENCE! firstable update the parent, and only after current.
+		hlp_va_set_parent_df(va, va->curr_dir.fid, va->curr_dir.iNode); // Current dir becomes 'parent'
+		hlp_va_set_current_df(va, new_df_node->fid, va->spr_blk.inodes_count);  // New one becomes 'current'
+		
+		// In each newly created dir, the first two records goes for itself and its parent
+		uint32_t count = 0;
+
+		
+		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->curr_dir, sizeof(FileID))) != SW_OK) {
+			break;
+		}
+		if ((result = hlp_write_data((uint32_t)&df_children_list(new_df_node)[count++], (uint8_t*)&va->parent_dir,  sizeof(FileID))) != SW_OK) {
+			break;
+		}
+
+		result = hlp_write_data(df_children_count(new_df_node), (uint8_t*)&count,  sizeof(uint32_t));
+
+	} while (0);
+
+	return result;
+}
+
+static ISO_SW
+data_block_for_ef(ValidityArea* va, INode* new_ef_node)
+{
+	ISO_SW result = SW_OK;
+	do {
+		// allocate a data block for the newly created DF
+		if ((new_ef_node->data = mm_allocate(new_ef_node->size)) == 0x00) {
+			result = SW_MEMORY_FULL;
+			break;
+		}
+		
+		DBG_SET_AVAIL_MEMORY(new_ef_node->size)
+
+		hlp_va_set_current_ef(va, new_ef_node->fid, va->spr_blk.inodes_count);
+	} while (0);
+
+	return result;
+}
+
+
+/** Adds to the FolderData::entries array an entry about newly created file */
+static ISO_SW
+add_record_to_parent(ValidityArea* va, INode* current)
+{
+	ISO_SW result = SW_OK;
+
+	// choose the parent depending on file type to be created:
+	// If we're about to create an EF, then we should start updating the 'size' field from current folder.
+	// Otherwise we need to proceed from parent folder.
+	uint16_t idx       = (current->desc[0] == ft_DF) ? va->parent_dir.iNode : va->curr_dir.iNode;
+	INode* inode_array = (INode*)va->spr_blk.inodes_start;
+	INode* currentDf   = (INode*)&inode_array[idx];
+	
+	do {
+		uint32_t count = 0;
+		
+		// get the 'count' of parent folder. It will be used as an index into 'entries' array
+		if ((result = hlp_read_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != SW_OK) {
+			break;
+		}
+		
+		FileID newRecord = {.iNode = va->spr_blk.inodes_count, .fid = current->fid};
+		// write the record about a new child of current folder.
+		if ((result = hlp_write_data((uint32_t)&df_children_list(currentDf)[count++], (uint8_t*)&newRecord, sizeof(FileID))) != SW_OK) {
+			break;
+		}
+		
+		// update the 'count' of parent folder.
+		if ((result = hlp_write_data(df_children_count(currentDf), (uint8_t*)&count,  sizeof(uint32_t))) != SW_OK) {
+			break;
+		}
+
+	} while (0);
+
+	return result;
+}
+
+/** traverse the path from this DF right to the MF,
+ * increasing the inode->size value of each parent folder. */
+static ISO_SW
+update_parent_size(ValidityArea* va, INode* current)
+{
+	ISO_SW result = SW_OK;
+	INode* inode_array = (INode*)va->spr_blk.inodes_start;
+	uint16_t idx = va->parent_dir.iNode;
+	uint16_t fid = va->parent_dir.fid;
+
+	do {
+		INode* parent = (INode*)&inode_array[idx];
+		if (parent->desc[0] != ft_DF) {
+			break;
+		}
+		// add the size of newly create folder to the size of subsequent parent folder.
+		uint16_t updated_size = parent->size + current->size;
+		if ((result = hlp_write_data((uint32_t)&inode_array[idx].size, (uint8_t*)&updated_size, sizeof(uint16_t))) != SW_OK) {
+			break;
+		}
+
+		// get the inode index of subsequent parent.
+		idx = df_children_list(parent)[1].iNode;
+		fid = df_children_list(parent)[1].fid;
+
+	} while (fid != 0x00); // fid=FFFF means we've reached the end of file hierarchy
+
+	return result;
+}
+
 
 ISO_SW
 hlp_allocate_data_block(ValidityArea* va, INode* inode)

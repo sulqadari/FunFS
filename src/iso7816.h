@@ -53,7 +53,6 @@ typedef struct {
 	uint8_t  lcs;         // 0x8A; Life cycle stage
 	uint8_t compact[8];   // 0x8C; security attributes in compact format  
 	uint16_t se;          // 0x8D; the FID of associated securiy environment (DF only)
-	uint8_t expanded[20]; // 0xAB; security attribute in expanded format 
 	uint32_t data;        // points to the associated data block
 } INode;
 

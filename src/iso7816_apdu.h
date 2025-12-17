@@ -5,6 +5,7 @@
 #include "iso7816.h"
 
 #define APDU_OFFSET_CDATA 5
+#define APDU_BUFFER_LEN   5 + 256 + 1 + 1	// header + data + sw1 + sw2
 
 #define APDU_INS_CREATE_FILE  0xE0
 #define APDU_INS_SELECT       0xA4
@@ -24,7 +25,7 @@ typedef struct {
 	union
 	{
 		Header header;
-		uint8_t buffer[261];
+		uint8_t buffer[APDU_BUFFER_LEN];
 	};
 } Apdu;
 

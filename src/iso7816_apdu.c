@@ -1,5 +1,6 @@
 #include "iso7816_apdu.h"
 #include "iso7816_cmd.h"
+#include "simulator/simu_udp.h"
 
 ISO_SW
 apdu_process(Apdu* apdu)
@@ -40,11 +41,15 @@ apdu_process(Apdu* apdu)
 void
 apdu_receive_cdata(Apdu* apdu)
 {
-	
+	udp_receive_cdata(apdu);
 }
 
 void
 apdu_send_rdata(Apdu* apdu, ISO_SW sw)
 {
-	
+	apdu->buffer[apdu->header.len]     = sw >> 8;
+	apdu->buffer[apdu->header.len + 1] = sw & 0xFF;
+	apdu->header.len += 2;
+
+	udp_send_cdata(apdu);
 }

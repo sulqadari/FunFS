@@ -3,6 +3,17 @@
 #include "simulator/debug.h"
 
 #include <stdio.h>
+#include <signal.h>
+#include <stdlib.h>
+
+static void
+interrupt_handler(int num)
+{
+	udp_server_close();
+	mm_save_image();
+	DBG_PRINT_VARG("%s", "Done.\n");
+	exit(0);
+}
 
 int
 main(int argc, char* argv[])
@@ -11,9 +22,14 @@ main(int argc, char* argv[])
 	Apdu apdu;
 
 	udp_server_init();
+	
 	if ((sw = iso_initialize()) != SW_OK) {
 		DBG_PRINT_VARG("ERROR: 'iso_initialize()' function failed with SW %04X (%s)\n", sw, DBG_SW_TO_STRING(sw));
 		exit(1);
+	}
+
+	if (signal(SIGINT, interrupt_handler) == SIG_ERR) {
+		DBG_PRINT_VARG("%s", "ERROR: can't catch SIGINT\n");
 	}
 
 	while (1) {
