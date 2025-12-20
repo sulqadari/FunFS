@@ -49,19 +49,18 @@ hlp_read_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
 	// DBG_PRINT_VARG("hlp_read_data(offset: %04X)\n", offset)
 
-	ISO_SW result   = SW_OK;
-	uint16_t half_word = 0;
+	ISO_SW result = SW_OK;
+	uint8_t byte  = 0;
 
-	for (uint32_t i = 0; i < len; i += 2) {
+	for (uint32_t i = 0; i < len; ++i) {
 
-		if (mm_read(offset + i, &half_word) != mm_Ok) {
+		if (mm_read(offset + i, &byte) != mm_Ok) {
 			result = SW_MEMORY_FAILURE;
 			break;
 		}
 
-		data[i + 0] = (uint8_t)( half_word       & 0xFF);
-		data[i + 1] = (uint8_t)((half_word >> 8) & 0xFF);
-		half_word   = 0;
+		data[i] = byte;
+
 	}
 
 	return result;
@@ -73,10 +72,12 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 	// DBG_PRINT_VARG("hlp_write_data(offset: %04X)\n", offset)
 	ISO_SW result      = SW_OK;
 	uint16_t half_word = 0;
+	uint8_t len_tail   = len & 0x01;
 
 	do {
-		// 1. check if the area we're about to write into is clear or not
-		for (uint32_t i = 0; i < len; i += 2) {
+		// 1. check if an area we're about to write into is clear or not
+		uint32_t i = 0;
+		for (; i < len; i += 2) {
 			if ((result = hlp_read_data(offset + i, (uint8_t*)&half_word, 2)) != SW_OK) {
 				break;
 			}
@@ -89,6 +90,15 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 			break;
 		}
 
+		// the number of bytes to be read is odd. That's mean that we've read
+		// one excess byte and it should be cleaned up.
+		// Also this assertion is intended to prevent erasing a half word which
+		// is isn't the last one, i.e. we have encountered a non-zeroed bytes in
+		// the middle of area we're about to update.
+		if (i >= len && len_tail) {
+			half_word |= 0x00FF;
+		}
+
 		// 2. If even a word isn't clear, then call mm_rewrite_page()
 		if (half_word != 0xFFFF) {
 			uint32_t start_page = PAGE_ALIGN(offset);
@@ -99,6 +109,7 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 
 		  // 3. else - just write data starting from the given offset.
 		} else {
+			len &= 0xFE; // only even number is allowed because writing is performed on a half-word base
 			half_word = 0;
 			for (uint32_t i = 0; i < len; i += 2) {
 				half_word |= (uint16_t)data[i + 0] & 0x00FF;
@@ -110,6 +121,16 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 				}
 
 				half_word = 0;
+			}
+
+			// we have one byte to be written
+			if (len_tail) {
+				half_word = 0xFF00;
+				half_word |= data[len];
+
+				if (mm_write(offset + len, half_word) != mm_Ok) {
+					result = SW_MEMORY_FAILURE;
+				}
 			}
 		}
 	} while (0);

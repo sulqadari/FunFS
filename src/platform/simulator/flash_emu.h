@@ -46,7 +46,7 @@ uint32_t  mm_allocate(uint16_t size);
 // mm_Result mm_deallocate(uint32_t offset);
 // mm_Result mm_defragmentate(void);
 mm_Result mm_write(uint32_t offset, uint16_t half_word);
-mm_Result mm_read (uint32_t offset, uint16_t* half_word);
+mm_Result mm_read (uint32_t offset, uint8_t* byte);
 
 mm_Result mm_open_image(void);
 mm_Result mm_save_image(void);

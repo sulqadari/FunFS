@@ -132,16 +132,19 @@ mm_write(uint32_t offset, uint16_t half_word)
 }
 
 mm_Result
-mm_read(uint32_t offset, uint16_t* half_word)
+mm_read(uint32_t offset, uint8_t* byte)
 {
+	uint8_t* ptr = (uint8_t*)first_page;
+	*byte = 0;
+
 	if (offset > fs_upper_addr) {
 		return mm_readErr;
 	}
 
 	// address to index conversion
-	offset = (offset - fs_start_addr) / 2;
+	offset = (offset - fs_start_addr);
 
-	*half_word = first_page[offset];
+	*byte = ptr[offset];
 
 	return mm_Ok;
 }
@@ -171,40 +174,35 @@ clear_page(uint32_t address)
  * Targeted page in flash is cleared beforehand, natch.
  */
 static mm_Result
-rewrite_next_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, const uint32_t len)
+rewrite_next_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* data, uint32_t len)
 {
-	mm_Result result   = mm_Ok;
-	uint16_t half_word = 0;
+	mm_Result result  = mm_Ok;
+	uint8_t   byte    = 0;
+	uint8_t*  page_u8 = (uint8_t*)page_ram;
 
-	memset((uint8_t*)page_ram, 0xFF, sizeof(page_ram));
+	memset((uint8_t*)page_ram, 0xFF, PAGE_SIZE);
 
 	do {
 		// 1. copy all data from flash to ram
-		for (uint32_t src_idx = 0, dst_idx = 0; src_idx < PAGE_SIZE; src_idx += 2, ++dst_idx) {
-			if ((result = mm_read(page_addr + src_idx, &half_word)) != mm_Ok) {
+		for (uint32_t i = 0; i < PAGE_SIZE; ++i) {
+			if ((result = mm_read(page_addr + i, &byte)) != mm_Ok) {
 				break;
 			}
-			page_ram[dst_idx] = half_word;
+
+			page_u8[i] = byte;
 		}
 		
 		if (result != mm_Ok) {
 			break;
 		}
 		
-		half_word = 0;
-
 		// 2. update fields in RAM
-		for (uint16_t src_idx = 0, dst_idx = (data_addr - page_addr) / 2; src_idx < len; src_idx += 2, ++dst_idx) {
-			half_word |= (uint16_t)data[src_idx + 1] << 8;
-			half_word |= (uint16_t)data[src_idx] & 0x00FF;
-
-			page_ram[dst_idx] = half_word;
-			half_word = 0;
+		for (uint32_t src = 0, dst = (data_addr - page_addr); src < len; src++, dst++) {
+			page_u8[dst] = data[src];
 		}
 
 		// 3. clear page
-		result = clear_page(page_addr);
-		if (result != mm_Ok){
+		if ((result = clear_page(page_addr)) != mm_Ok) {
 			break;
 		}
 
