@@ -43,12 +43,14 @@ iso_initialize(void)
 			break;
 		}
 
+		set_available_memory(sizeof(SuperBlock));
+
 		uint32_t inode_table_size = INODE_TABLE_SIZE;	// allocate 10% of available memory for the Inodes table.
 		if ((va.spr_blk.inodes_start = mm_allocate(inode_table_size)) == 0) {
 			break;
 		}
 
-		DBG_SET_AVAIL_MEMORY(inode_table_size + sizeof(SuperBlock))
+		set_available_memory(inode_table_size);
 
 		va.spr_blk.magic           = 0xCAFEBABE;
 		va.spr_blk.inodes_count    = 0x00;
@@ -127,7 +129,7 @@ iso_create_file(Apdu* apdu)
 		result = SW_OK;
 	} while (0);
 	
-	// DBG_PRINT_VARG("\navailable memory: %d\n", DBG_GET_AVAIL_MEMORY());
+	DBG_PRINT_VARG("available memory: %d\n\n", DBG_GET_AVAIL_MEMORY());
 
 	return result;
 }

@@ -326,7 +326,7 @@ data_block_for_df(ValidityArea* va, INode* new_df_node)
 			break;
 		}
 
-		DBG_SET_AVAIL_MEMORY(new_df_node->size)
+		set_available_memory(new_df_node->size);
 
 		// MIND THE SEQUENCE! firstable update the parent, and only after current.
 		hlp_va_set_parent_df(va, va->curr_dir.fid, va->curr_dir.iNode); // Current dir becomes 'parent'
@@ -361,7 +361,7 @@ data_block_for_ef(ValidityArea* va, INode* new_ef_node)
 			break;
 		}
 		
-		DBG_SET_AVAIL_MEMORY(new_ef_node->size)
+		set_available_memory(new_ef_node->size);
 
 		hlp_va_set_current_ef(va, new_ef_node->fid, va->spr_blk.inodes_count);
 	} while (0);

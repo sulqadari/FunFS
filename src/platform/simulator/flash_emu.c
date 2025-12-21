@@ -54,7 +54,7 @@ mm_set_bounds(void)
 void
 set_available_memory(uint32_t size)
 {
-	available_memory -= size + sizeof(block_t);
+	available_memory -= HEX_CEIL(size + 1) + sizeof(block_t);
 }
 
 uint32_t
