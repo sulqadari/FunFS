@@ -1,5 +1,5 @@
-#ifndef FUNFS_APDU_H
-#define FUNFS_APDU_H
+#ifndef FUNFS_ISO7816_APDU_H
+#define FUNFS_ISO7816_APDU_H
 
 #include <stdint.h>
 #include <string.h>
@@ -36,4 +36,4 @@ ISO_SW apdu_process(Apdu* apdu);
 void apdu_receive_cdata(Apdu* apdu);
 void apdu_send_rdata(uint8_t* rdata, uint16_t len, ISO_SW sw);
 
-#endif /* FUNFS_APDU_H */
+#endif /* FUNFS_ISO7816_APDU_H */

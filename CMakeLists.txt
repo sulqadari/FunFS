@@ -12,10 +12,10 @@ option(USE_DEBUG "Apply debugging flags"                            YES)
 option(USE_SANIT "Apply memory leak and boundary violation control" NO)
 
 add_compile_definitions(
-	"PAGE_SIZE=32"
+	"PAGE_SIZE=128"
 	"PAGES_TOTAL=32"
 	"ITABLE_MEMORY_OCCUPATION_IN_PERCENTS=50"
-	"DF_CHILDREN_LIST_LEN=7"
+	"DF_CHILDREN_LIST_LEN=20"
 )
 #--------------------------
 

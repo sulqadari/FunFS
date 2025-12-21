@@ -11,7 +11,7 @@ static ValidityArea va;
 ISO_SW
 iso_initialize(void)
 {
-	DBG_PRINT_VARG("\ncall: %s\n\n", "iso_initialize")
+	// DBG_PRINT_VARG("\ncall: %s\n\n", "iso_initialize")
 	
 	ISO_SW result = SW_MEMORY_FAILURE;
 	do {
@@ -85,7 +85,7 @@ iso_initialize(void)
 ISO_SW
 iso_create_file(Apdu* apdu)
 {
-	DBG_PRINT_VARG("\ncall: %s", "iso_create_file")
+	// DBG_PRINT_VARG("\ncall: %s", "iso_create_file")
 
 	uint8_t* cdata     = &apdu->buffer[APDU_OFFSET_CDATA];
 	uint16_t cdata_len = apdu->header.len;
@@ -113,7 +113,7 @@ iso_create_file(Apdu* apdu)
 			break;
 		}
 
-		DBG_PRINT_VARG("(%04X)\n", inode.fid)
+		// DBG_PRINT_VARG("(%04X)\n", inode.fid)
 
 		if ((result = hlp_allocate_data_block(&va, &inode)) != SW_OK) {
 			break;
@@ -127,7 +127,7 @@ iso_create_file(Apdu* apdu)
 		result = SW_OK;
 	} while (0);
 	
-	DBG_PRINT_VARG("\navailable memory: %d\n", DBG_GET_AVAIL_MEMORY());
+	// DBG_PRINT_VARG("\navailable memory: %d\n", DBG_GET_AVAIL_MEMORY());
 
 	return result;
 }
@@ -135,7 +135,7 @@ iso_create_file(Apdu* apdu)
 static ISO_SW
 iso_select_by_name(const uint16_t fid)
 {
-	DBG_PRINT_VARG("\ncall: %s(%04X)\n\n", "iso_select_by_name", fid)
+	// DBG_PRINT_VARG("\ncall: %s(%04X)\n\n", "iso_select_by_name", fid)
 	ISO_SW result = SW_UNKNOWN;
 
 	uint16_t idx       = va.curr_dir.iNode;
@@ -206,7 +206,7 @@ iso_select_by_name(const uint16_t fid)
 static ISO_SW
 iso_select_by_path(uint8_t* cdata, uint16_t cdata_len)
 {
-	DBG_PRINT_VARG("call: %s\n", "iso_select_by_path")
+	// DBG_PRINT_VARG("call: %s\n", "iso_select_by_path")
 
 	ISO_SW   result = SW_FILE_NOT_FOUND;
 	uint16_t fid;
@@ -245,7 +245,7 @@ iso_select(Apdu* apdu)
 ISO_SW
 iso_activate(Apdu* apdu)
 {
-	DBG_PRINT_VARG("call: %s\n", "iso_activate")
+	// DBG_PRINT_VARG("call: %s\n", "iso_activate")
 
 	ISO_SW   result    = SW_INCORRECT_P1P2;
 	uint16_t idx        = va.curr_file.iNode;
@@ -273,7 +273,7 @@ iso_activate(Apdu* apdu)
 ISO_SW
 iso_read_binary(Apdu* apdu)
 {
-	DBG_PRINT_VARG("call: %s\n", "iso_read_binary")
+	// DBG_PRINT_VARG("call: %s\n", "iso_read_binary")
 	uint16_t data_len  = apdu->header.len;
 	ISO_SW   result    = SW_CMD_INCOMPATIBLE_WITH_FILE_STRUCT;
 	uint32_t offset    = (((uint16_t)apdu->header.p1 << 8) | ((uint16_t)apdu->header.p2 & 0x00FF));
@@ -301,7 +301,7 @@ iso_read_binary(Apdu* apdu)
 ISO_SW
 iso_write_binary(Apdu* apdu)
 {
-	DBG_PRINT_VARG("call: %s\n", "iso_write_binary")
+	// DBG_PRINT_VARG("call: %s\n", "iso_write_binary")
 	
 	uint8_t* cdata     = &apdu->buffer[APDU_OFFSET_CDATA];
 	uint16_t cdata_len = apdu->header.len;

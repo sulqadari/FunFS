@@ -70,49 +70,43 @@ ISO_SW
 hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
 	// DBG_PRINT_VARG("hlp_write_data(offset: %04X)\n", offset)
-	ISO_SW result      = SW_OK;
-	uint16_t half_word = 0;
-	uint8_t len_tail   = len & 0x01;
+	ISO_SW result     = SW_OK;
+	uint8_t data_tail = len & 0x01;
 
 	do {
+		uint8_t byte = 0;
+		
 		// 1. check if an area we're about to write into is clear or not
-		uint32_t i = 0;
-		for (; i < len; i += 2) {
-			if ((result = hlp_read_data(offset + i, (uint8_t*)&half_word, 2)) != SW_OK) {
+		for (uint32_t i = 0; i < len; ++i) {
+			if (mm_read(offset + i, &byte) != mm_Ok) {
+				result = SW_MEMORY_FAILURE;
 				break;
 			}
-			if (half_word != 0xFFFF) {
+
+			if (byte != 0xFF) {
 				break;
 			}
 		}
 
-		if (result != SW_OK){
+		if (result != SW_OK) {
 			break;
 		}
 
-		// the number of bytes to be read is odd. That's mean that we've read
-		// one excess byte and it should be cleaned up.
-		// Also this assertion is intended to prevent erasing a half word which
-		// is isn't the last one, i.e. we have encountered a non-zeroed bytes in
-		// the middle of area we're about to update.
-		if (i >= len && len_tail) {
-			half_word |= 0x00FF;
-		}
-
-		// 2. If even a word isn't clear, then call mm_rewrite_page()
-		if (half_word != 0xFFFF) {
+		// 2.1. If even a byte isn't clear, then call mm_rewrite_page()
+		if (byte != 0xFF) {
 			uint32_t start_page = PAGE_ALIGN(offset);
 			if (mm_rewrite_page(start_page, offset, data, len) != mm_Ok) {
 				result = SW_MEMORY_FAILURE;
 				break;
 			}
 
-		  // 3. else - just write data starting from the given offset.
+		  // 2.2. else - just write data starting from the given offset.
 		} else {
-			len &= 0xFE; // only even number is allowed because writing is performed on a half-word base
-			half_word = 0;
+			uint16_t half_word = 0x00;
+			len               &= 0xFE; // only even number is allowed because writing is performed on a half-word basis
+
 			for (uint32_t i = 0; i < len; i += 2) {
-				half_word |= (uint16_t)data[i + 0] & 0x00FF;
+				half_word |= (uint16_t)data[i    ] & 0x00FF;
 				half_word |= (uint16_t)data[i + 1] << 8;
 
 				if (mm_write(offset + i, half_word) != mm_Ok) {
@@ -123,10 +117,9 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 				half_word = 0;
 			}
 
-			// we have one byte to be written
-			if (len_tail) {
-				half_word = 0xFF00;
-				half_word |= data[len];
+			// Do we have a last byte to be written? I.e. is the number of bytes to be written is odd?
+			if (data_tail) {
+				half_word = (0xFF00 | ((uint16_t)data[len] & 0x00FF));
 
 				if (mm_write(offset + len, half_word) != mm_Ok) {
 					result = SW_MEMORY_FAILURE;
@@ -209,6 +202,33 @@ hlp_check_consistency(INode* inode)
 	return result;
 }
 
+static ISO_SW
+parse_security_attributes(INode* node, uint8_t* data, uint32_t data_len)
+{
+	ISO_SW result = SW_PROPRIETARY_FORMAT_NOT_SUPPORTED;
+	SACompact* input = (SACompact*)data;
+
+	do {
+		if (input->amb.df.is_prop) {
+			break;
+		}
+
+		node->sacf.amb.df = input->amb.df;
+
+		for (int8_t src = 0, dst = 0, shift = 6; src < data_len - 1; ++dst, --shift) {
+			uint8_t has_scb = (data[0] & (1 << shift));
+			if (has_scb) {
+				node->sacf.scb_list[dst] = input->scb_list[src];
+				++src;
+			}
+		}
+
+		result = SW_OK;
+	} while (0);
+
+	return result;
+}
+
 ISO_SW
 hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 {
@@ -262,8 +282,8 @@ hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 					advance(curr);
 				} break;
 				case 0x8C: {  // security attributes in compact format
-					assert_leq(len, 7, SW_INCORRECT_PARAMS_IN_CDATA);
-					memcpy(&inode->compact, curr, len);
+					assert_leq(len, 8, SW_INCORRECT_PARAMS_IN_CDATA);
+					result = parse_security_attributes(inode, curr, len);
 					advance(curr);
 				} break;
 				case 0x8D: { // the FID of associated securiy environment

@@ -51,6 +51,32 @@ print_array(uint8_t* data, uint16_t len, const char* name)
 	printf("\n");
 }
 
+static void
+print_sec_attr(SACompact* attr)
+{
+	uint8_t* temp = (uint8_t*)attr->scb_list;
+	printf(
+		"compact SA  \n"
+		"\tproprietary      %d\n"
+		"\tremovable        %d: %02x\n"
+		"\tterminate        %d: %02x\n"
+		"\tactivate         %d: %02x\n"
+		"\tdeactivate       %d: %02x\n"
+		"\tcreate_df/write  %d: %02x\n"
+		"\tcreate_ef/update %d: %02x\n"
+		"\tdel_child/read   %d: %02x\n",
+		attr->amb.df.is_prop,
+		attr->amb.df.removable, temp[0],
+		attr->amb.df.terminate, temp[1],
+		attr->amb.df.activate,  temp[2],
+		attr->amb.df.deactivate,temp[3],
+		attr->amb.df.create_df, temp[4],
+		attr->amb.df.create_ef, temp[5],
+		attr->amb.df.del_child, temp[6]
+	);
+	
+}
+
 void
 dbg_print_inode(INode* node)
 {
@@ -66,7 +92,7 @@ dbg_print_inode(INode* node)
 		node->lcs, node->se
 	);
 	print_array(node->aid, 16,      "AID         ");
-	print_array(node->compact, 7,   "compact SA  ");
+	print_sec_attr(&node->sacf);
 	printf("\n");
 }
 

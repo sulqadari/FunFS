@@ -9,9 +9,14 @@ import sys
 udp_params = ("127.0.0.1", 8485)
 udp_socket = None
 
+def tlv(tag: str, value: str):
+	result = hex_to_bytes(value)
+	return F" {tag} {len(result):02X} " + byte_to_hex(result)
+
 def len_val(hex_str: str):
 	result = hex_to_bytes(hex_str)
-	return [len(result)] + result
+	#return str([len(result)] + result)
+	return F"{len(result):02X} " + byte_to_hex(result)
 
 def hex_to_bytes(hex_str: str):
 	bytes_list = []
@@ -77,8 +82,9 @@ def udp_connect():
 def udp_disconnect():
 	udp_socket.close()
 
-def udp_apdu_send(cdata, expected_sw = 0x9000):
-	print(">> " + byte_to_hex(cdata, True))
+def udp_apdu_send(cdata, cmd_name = "", expected_sw = 0x9000):
+	
+	print(f"{cmd_name}\n>> " + byte_to_hex(cdata, True))
 
 	udp_socket.send(bytearray(cdata))
 	rdata     = udp_socket.recv(263)       # get array with responce

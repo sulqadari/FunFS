@@ -20,9 +20,10 @@
 #define FLASH_SIZE_TOTAL (PAGES_TOTAL * PAGE_SIZE)
 #define INODE_TABLE_SIZE ((FLASH_SIZE_TOTAL * ITABLE_MEMORY_OCCUPATION_IN_PERCENTS) / 100)
 
-#define WORD_CEIL(expr) (((expr) +  0x03) & 0xFFFFFFFC)  // word = 4 bytes
-#define HEX_CEIL(expr)  (((expr) +  0x0F) & 0xFFFFFFF0)  // hex = 16 bytes
-#define PAGE_CEIL(expr) (((expr) + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1))  // page = 1024 bytes
+#define HWORD_CEIL(expr) (((expr) +  0x01) & 0xFFFFFFFE)  // word = 2 bytes
+#define WORD_CEIL(expr)  (((expr) +  0x03) & 0xFFFFFFFC)  // word = 4 bytes
+#define HEX_CEIL(expr)   (((expr) +  0x0F) & 0xFFFFFFF0)  // hex = 16 bytes
+#define PAGE_CEIL(expr)  (((expr) + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1))  // page = 1024 bytes
 
 #define PAGE_ALIGN(expr) ((expr) & ~(PAGE_SIZE - 1))
 

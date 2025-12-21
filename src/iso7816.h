@@ -19,6 +19,7 @@ typedef enum {
 	SW_DATA_NOT_FOUND                    = 0x6A88,
 	SW_FILE_ALREADY_EXISTS               = 0x6A89,
 	SW_DF_NAME_ALREADY_EXISTS            = 0x6A8A,
+	SW_PROPRIETARY_FORMAT_NOT_SUPPORTED  = 0x6A8B,
 	SW_INS_NOT_SUPPORTED                 = 0x6D00,
 	SW_CLA_NOT_SUPPORTED                 = 0x6E00,
 	SW_UNKNOWN                           = 0x6F00,
@@ -43,17 +44,62 @@ typedef enum {
 #define LCS_ACTIVATED   0x05
 #define LCS_DEACTIVATED 0x04
 #define LCS_TERMINATED  0x0F
+
+/** Access Mode Byte for DF */
+typedef struct {
+	uint8_t del_child: 1; // fildren are removable
+	uint8_t create_ef: 1; // files are allowed
+	uint8_t create_df: 1; // subdirs are allowed
+	uint8_t deactivate:1; // can be deavtivated
+	uint8_t activate:  1; // once deactivated, can be moved to 'activated' state again
+	uint8_t terminate: 1; // folder present but isn't usable
+	uint8_t removable: 1; // this folder can be deleted
+	uint8_t is_prop:   1; // proprietary coding of bits 7-4
+} amb_df;
+
+/** Access Mode Byte for EF */
+typedef struct {
+	uint8_t read:      1; // readable
+	uint8_t update:    1; // updatable
+	uint8_t write:     1; // writable
+	uint8_t deactivate:1; // can be deavtivated
+	uint8_t activate:  1; // once deactivated, can be moved to 'activated' state again
+	uint8_t terminate: 1; // file present but isn't usable
+	uint8_t removable: 1; // this file can be deleted
+	uint8_t is_prop:   1; // proprietary coding of bits 7-4
+	
+} amb_ef;
+
+/** Security Condition Byte */
+typedef struct {
+	uint8_t seid:     4; // the SFI of Security Environment
+	uint8_t pin:      1; // PIN must be entered
+	uint8_t ext_auth: 1; // external authentication must be performed
+	uint8_t sm_mode:  1; // secure messaging must be established
+	uint8_t and_mode: 1; // all conditions shall be satisfied
+} scb;
+
+typedef struct
+{
+	union
+	{
+		amb_df df;
+		amb_ef ef;
+	} amb;
+	scb scb_list[7];
+} SACompact;
+
 /** Keeps information about each file on the file system */
 typedef struct {
-	uint16_t size;        // 0x80; File size       (EF only)
-	uint8_t  desc[6];     // 0x82; file descriptor (e.g. DF, EF, LF, etc.)
-	uint16_t fid;         // 0x83; file ID         (e.g. 3F00, 0101, etc.)
-	uint8_t  aid[16];     // 0x84; application AID (DF only)
-	uint8_t  sfi;         // 0x88; short file ID   (EF only)
-	uint8_t  lcs;         // 0x8A; Life cycle stage
-	uint8_t compact[8];   // 0x8C; security attributes in compact format  
-	uint16_t se;          // 0x8D; the FID of associated securiy environment (DF only)
-	uint32_t data;        // points to the associated data block
+	uint16_t size;    // 0x80; File size       (EF only)
+	uint8_t  desc[6]; // 0x82; file descriptor (e.g. DF, EF, LF, etc.)
+	uint16_t fid;     // 0x83; file ID         (e.g. 3F00, 0101, etc.)
+	uint8_t  aid[16]; // 0x84; application AID (DF only)
+	uint8_t  sfi;     // 0x88; short file ID   (EF only)
+	uint8_t  lcs;     // 0x8A; Life cycle stage
+	SACompact sacf;   // 0x8C; security attributes in compact format  
+	uint16_t se;      // 0x8D; the FID of associated securiy environment (DF only)
+	uint32_t data;    // points to the associated data block
 } INode;
 
 typedef struct {

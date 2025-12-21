@@ -116,7 +116,7 @@ mm_write(uint32_t offset, uint16_t half_word)
 		printf(
 			"\n\t\t\t****HardFault****\n"
 			"Attempt to write at address '%08X' (first_page[%d])\n"
-			"which isn't blank and contains '%08X' value\n\n",
+			"which isn't blank and contains '%04X' value\n\n",
 			temp, offset, first_page[offset]
 		);
 
@@ -219,7 +219,7 @@ rewrite_next_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* d
 
 /**
  * Rewrites an entire page.
- * This function is called whenever the 'hlp_write_data()' function encounters a non-FFFF half-word.
+ * This function is called whenever the 'hlp_write_data()' function encounters a non-FF value.
  * It also handles cases when data spans two or more pages.
  */
 mm_Result
