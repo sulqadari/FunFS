@@ -9,42 +9,41 @@ static FILE*       aFile        = NULL;
 static uint16_t page_ram [PAGE_SIZE / 2];
 static uint16_t flash_emu[FLASH_SIZE_TOTAL / 2];
 
+/**Page-aligned first address.
+ * This solution resembles a real hardware: usually we use a first available page after
+ * the main sections (.text, .data, .bss, etc.). */
 static uint32_t fs_start_addr    = 0x00;
-static uint32_t fs_upper_addr    = 0x00;
-static uint32_t available_memory = 0x00;
-static uint16_t* first_page      = NULL;
 
-/** Defines memory area which is available for the user space.
- * 
- * To make simulator as close to hardware as possible, this function
- * sets 'fs_start_addr' to address which is aligned up to the nearest page. But this in turn has
- * broken mm_write() and mm_read() functions because the expression below
- * 'offset = (offset - fs_start_addr) / 2; (see in above mentioned functions)'
- * calculates offset from the beginning of the 'flash_emu' array, not from the first
- * avaiable page-aligned address.
- * To fix that, we take an address within 'flash_emu' pointed by the first page
- * available for the user data. */
+/** Upper bound of the NVM. */
+static uint32_t fs_upper_addr    = 0x00;
+
+/** Available NVM memory after each allocation */
+static uint32_t available_memory = 0x00;
+
 static void
 mm_set_bounds(void)
 {
 	fs_start_addr = PAGE_CEIL((uint32_t)flash_emu);
 	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
 
-	first_page = &flash_emu[(fs_start_addr - (uint32_t)flash_emu) / 2];
-	available_memory = FLASH_SIZE_TOTAL - ((uint32_t)first_page - (uint32_t)flash_emu);
+	// initially available memory
+	available_memory = FLASH_SIZE_TOTAL - (fs_start_addr - (uint32_t)flash_emu);
+
 	DBG_PRINT_VARG(
 		"\n"
-		"flash size:              %d bytes\n"
-		"page  size:              %d bytes\n"
-		"pages total:             %d bytes\n"
-		"transaction buffer size: %d bytes\n"
-		"flash   start address:   0x%08x\n"
-		"program start address:   0x%08x\n"
-		"flash   upper bound:     0x%08x\n\n",
+		"flash size:               %d bytes\n"
+		"page  size:               %d bytes\n"
+		"pages total:              %d bytes\n"
+		"transaction buffer size:  %d bytes\n"
+
+		"flash   start address:    0x%08x\n"
+		"program start address:    0x%08x\n"
+		"flash   upper bound:      0x%08x\n\n",
 		FLASH_SIZE_TOTAL,
 		PAGE_SIZE,
 		PAGES_TOTAL,
 		sizeof(page_ram),
+		
 		(uint32_t)flash_emu,
 		fs_start_addr,
 		fs_upper_addr
@@ -79,11 +78,19 @@ mm_allocate(uint16_t size)
 	uint32_t address  = 0;
 	do {
 		if (current->len == 0xFFFFFFFF) { // the block is empty
+			
+			uint32_t off = (uint32_t)&current->len;
+			
 			// allocate this block
-			current->len = size;
+			mm_write(off, size);
+			mm_write(off + 2, 0);
 
-			current->prev = (uint32_t)previous + sizeof(block_t);
-			address       = (uint32_t)current  + sizeof(block_t);
+			off = (uint32_t)&current->prev;
+			mm_write(off,     (uint16_t)(((uint32_t)previous + sizeof(block_t)) >> 16));
+			mm_write(off + 2, (uint16_t)(((uint32_t)previous + sizeof(block_t)) & 0x0000FFFF));
+			
+			address = (uint32_t)current  + sizeof(block_t);
+
 			break;
 		} else { // look for an another block
 			previous = current;
@@ -105,6 +112,16 @@ mm_Result
 mm_write(uint32_t offset, uint16_t half_word)
 {
 	uint32_t temp = offset;
+	uint16_t* ptr = (uint16_t*)fs_start_addr;
+
+	if (offset & 0x00000001) {
+		printf("\n\t\t\t****HardFault****\n"
+			"Attempt to write at address '%08X' which isn't half-word aligned\n\n", offset
+		);
+
+		raise(SIGINT);
+	}
+
 	if (offset > fs_upper_addr) {
 		return mm_writeErr;
 	}
@@ -112,21 +129,15 @@ mm_write(uint32_t offset, uint16_t half_word)
 	// address to index conversion
 	offset = (offset - fs_start_addr) / 2;
 
-	if (first_page[offset] != 0xFFFF) {
-		printf(
-			"\n\t\t\t****HardFault****\n"
-			"Attempt to write at address '%08X' (first_page[%d])\n"
-			"which isn't blank and contains '%04X' value\n\n",
-			temp, offset, first_page[offset]
+	if (ptr[offset] != 0xFFFF) {
+		printf("\n\t\t\t****HardFault****\n"
+			"Attempt to write at address '%08X' (first_page[%d])\nwhich isn't blank and contains '%04X' value\n\n", temp, offset, ptr[offset]
 		);
 
-		// DBG_PRINT_HEX((uint8_t*)flash_emu, sizeof(flash_emu))
-
 		raise(SIGINT);
-		return mm_writeErr;
 	}
 
-	first_page[offset] = half_word;
+	ptr[offset] = half_word;
 
 	return mm_Ok;
 }
@@ -134,7 +145,7 @@ mm_write(uint32_t offset, uint16_t half_word)
 mm_Result
 mm_read(uint32_t offset, uint8_t* byte)
 {
-	uint8_t* ptr = (uint8_t*)first_page;
+	uint8_t* ptr = (uint8_t*)fs_start_addr;
 	*byte = 0;
 
 	if (offset > fs_upper_addr) {
@@ -152,6 +163,8 @@ mm_read(uint32_t offset, uint8_t* byte)
 static mm_Result
 clear_page(uint32_t address)
 {
+	uint16_t* ptr = (uint16_t*)fs_start_addr;
+
 	if (address > fs_upper_addr) {
 		return mm_writeErr;
 	}
@@ -160,7 +173,7 @@ clear_page(uint32_t address)
 	address = (address - fs_start_addr) / 2;
 
 	for (uint16_t i = 0; i < PAGE_SIZE / 2; ++i) {
-		first_page[address + i] = 0xFFFF;
+		ptr[address + i] = 0xFFFF;
 	}
 
 	return mm_Ok;

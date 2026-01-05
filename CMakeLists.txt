@@ -8,8 +8,7 @@ set(FUNFS_EXEC      "FunFS_exe")
 
 #-------------------------- Choose required options
 
-option(USE_DEBUG "Apply debugging flags"                            YES)
-option(USE_SANIT "Apply memory leak and boundary violation control" NO)
+option(USE_DEBUG "Apply debugging flags" YES)
 
 add_compile_definitions(
 	"PAGE_SIZE=32"
