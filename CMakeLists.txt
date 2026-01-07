@@ -5,20 +5,18 @@ set(FUNFS_SRC       "FunFS_src")
 set(FUNFS_PLATFORM  "FunFS_platfrom")
 set(FUNFS_EXEC      "FunFS_exe")
 
-
 #-------------------------- Choose required options
 
 option(USE_DEBUG "Apply debugging flags" YES)
 
 add_compile_definitions(
-	"PAGE_SIZE=32"
+	"PAGE_SIZE=1024"
 	"PAGES_TOTAL=32"
 	"ITABLE_MEMORY_OCCUPATION_IN_PERCENTS=50"
 	"DF_CHILDREN_LIST_LEN=10"
 )
+
 #--------------------------
-
-
 if (USE_DEBUG)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32 -Wall -O0 -g -fsanitize=address -static-libasan -fno-omit-frame-pointer")
 	add_compile_definitions(

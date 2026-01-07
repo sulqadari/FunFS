@@ -20,8 +20,20 @@ static uint32_t fs_upper_addr    = 0x00;
 /** Available NVM memory after each allocation */
 static uint32_t available_memory = 0x00;
 
-static void
-mm_set_bounds(void)
+void
+set_available_memory(uint32_t size)
+{
+	available_memory -= HEX_CEIL(size + 1) + sizeof(block_t);
+}
+
+uint32_t
+get_available_memory(void)
+{
+	return available_memory;
+}
+
+uint32_t
+mm_get_start_address(void)
 {
 	fs_start_addr = PAGE_CEIL((uint32_t)flash_emu);
 	fs_upper_addr = (uint32_t)flash_emu + FLASH_SIZE_TOTAL;
@@ -48,24 +60,7 @@ mm_set_bounds(void)
 		fs_start_addr,
 		fs_upper_addr
 	)
-}
-
-void
-set_available_memory(uint32_t size)
-{
-	available_memory -= HEX_CEIL(size + 1) + sizeof(block_t);
-}
-
-uint32_t
-get_available_memory(void)
-{
-	return available_memory;
-}
-
-uint32_t
-mm_get_start_address(void)
-{
-	mm_set_bounds();
+	
 	return fs_start_addr + sizeof(block_t);
 }
 
@@ -220,8 +215,8 @@ rewrite_next_page(const uint32_t page_addr, const uint32_t data_addr, uint8_t* d
 		}
 
 		// 4. update entire page
-		for (uint32_t dest_idx = 0, src_idx = 0; dest_idx < PAGE_SIZE; dest_idx += 2, ++src_idx) {
-			if ((result = mm_write(page_addr + dest_idx, page_ram[src_idx])) != mm_Ok) {
+		for (uint32_t src = 0, dst = 0; dst < PAGE_SIZE; ++src, dst += 2) {
+			if ((result = mm_write(page_addr + dst, page_ram[src])) != mm_Ok) {
 				break;
 			}
 		}
@@ -251,7 +246,7 @@ mm_rewrite_page(uint32_t start_page, uint32_t data_start_addr, uint8_t* data, ui
 		rewrite_next_page(start_page, data_start_addr, data_ptr, portion);
 		start_page       = PAGE_CEIL(start_page + 1);
 		data_start_addr += portion;
-		data_ptr    += portion;
+		data_ptr        += portion;
 		
 	} while (len -= portion);
 

@@ -71,7 +71,6 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 {
 	// DBG_PRINT_VARG("hlp_write_data(offset: %04X)\n", offset)
 	ISO_SW result     = SW_OK;
-	uint8_t data_tail = len & 0x01;
 
 	do {
 		uint8_t byte = 0;
@@ -103,7 +102,9 @@ hlp_write_data(uint32_t offset, uint8_t* data, uint32_t len)
 		  // 2.2. else - just write data starting from the given offset.
 		} else {
 			uint16_t half_word = 0x00;
-			len               &= 0xFE; // only even number is allowed because writing is performed on a half-word basis
+			uint8_t data_tail  = len & 0x01;
+			len               &= 0xFE; // only even number is allowed because
+									   // writing is performed on a half-word basis
 
 			for (uint32_t i = 0; i < len; i += 2) {
 				half_word |= (uint16_t)data[i    ] & 0x00FF;
@@ -229,8 +230,7 @@ parse_security_attributes(INode* node, uint8_t* data, uint32_t data_len)
 	return result;
 }
 
-ISO_SW
-hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
+ISO_SW hlp_parse_params(INode* inode, uint8_t* data, uint32_t data_len)
 {
 	ISO_SW result = SW_OK;
 	uint8_t* curr = data;
