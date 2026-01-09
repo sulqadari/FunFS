@@ -36,7 +36,7 @@ char* dbg_sw_to_string(ISO_SW sw);
 	dbg_sw_to_string(sw)
 
 #define DBG_GET_AVAIL_MEMORY() \
-	get_available_memory()            // Notice the absence of semicolon
+	mm_get_available_memory()            // Notice the absence of semicolon
 
 # else
 #define DBG_PRINT_VARG(format, ...)

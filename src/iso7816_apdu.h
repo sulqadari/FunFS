@@ -14,6 +14,7 @@
 #define APDU_INS_ACTIVATE     0x44
 #define APDU_INS_READ_BINARY  0xB0
 #define APDU_INS_WRITE_BINARY 0xD0
+#define APDU_INS_TERMINATE_CARD_USAGE 0xFE
 
 typedef struct {
 	uint8_t cla;

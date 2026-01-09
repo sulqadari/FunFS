@@ -28,7 +28,7 @@ main(int argc, char* argv[])
 
 	if ((sw = iso_initialize()) != SW_OK) {
 		DBG_PRINT_VARG("ERROR: 'iso_initialize()' function failed with SW %04X (%s)\n", sw, DBG_SW_TO_STRING(sw));
-		exit(1);
+		raise(SIGINT);
 	}
 
 	while (1) {

@@ -20,14 +20,20 @@ static uint32_t fs_upper_addr    = 0x00;
 /** Available NVM memory after each allocation */
 static uint32_t available_memory = 0x00;
 
+uint16_t*
+mm_get_flash_emu(void)
+{
+	return flash_emu;
+}
+
 void
-set_available_memory(uint32_t size)
+mm_set_available_memory(uint32_t size)
 {
 	available_memory -= HEX_CEIL(size + 1) + sizeof(block_t);
 }
 
 uint32_t
-get_available_memory(void)
+mm_get_available_memory(void)
 {
 	return available_memory;
 }
@@ -74,15 +80,20 @@ mm_allocate(uint16_t size)
 	do {
 		if (current->len == 0xFFFFFFFF) { // the block is empty
 			
-			uint32_t off = (uint32_t)&current->len;
+			uint32_t offset = (uint32_t)&current->len;
+			uint16_t value = size;
 			
 			// allocate this block
-			mm_write(off, size);
-			mm_write(off + 2, 0);
+			mm_write(offset, value);
+			mm_write(offset + 2, 0);
 
-			off = (uint32_t)&current->prev;
-			mm_write(off,     (uint16_t)(((uint32_t)previous + sizeof(block_t)) >> 16));
-			mm_write(off + 2, (uint16_t)(((uint32_t)previous + sizeof(block_t)) & 0x0000FFFF));
+			offset = (uint32_t)&current->prev;
+			value  = (uint16_t)(((uint32_t)previous + sizeof(block_t)) & 0x0000FFFF);
+			mm_write(offset, value);
+
+			offset += 2;
+			value   = (uint16_t)(((uint32_t)previous + sizeof(block_t)) >> 16);
+			mm_write(offset, value);
 			
 			address = (uint32_t)current  + sizeof(block_t);
 

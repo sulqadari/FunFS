@@ -10,8 +10,8 @@ set(FUNFS_EXEC      "FunFS_exe")
 option(USE_DEBUG "Apply debugging flags" YES)
 
 add_compile_definitions(
-	"PAGE_SIZE=1024"
-	"PAGES_TOTAL=32"
+	"PAGE_SIZE=64"
+	"PAGES_TOTAL=64"
 	"ITABLE_MEMORY_OCCUPATION_IN_PERCENTS=50"
 	"DF_CHILDREN_LIST_LEN=10"
 )

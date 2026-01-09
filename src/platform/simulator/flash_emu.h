@@ -54,7 +54,8 @@ mm_Result mm_save_image(void);
 
 mm_Result mm_rewrite_page(uint32_t start_page, uint32_t data_start_addr, uint8_t* data, uint32_t len);
 
-void      set_available_memory(uint32_t size);
-uint32_t  get_available_memory(void);
+void      mm_set_available_memory(uint32_t size);
+uint32_t  mm_get_available_memory(void);
+uint16_t* mm_get_flash_emu(void);
 
 #endif /* FUNFS_FLASH_EMU_H */

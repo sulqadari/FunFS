@@ -17,7 +17,8 @@ def main():
 	udp_apdu_send(hex_to_bytes("00e0 0000" + len_val(tlv("62",tlv("83", "CF00") +tlv("82", "38") +tlv("8A", "01") +tlv("8D", "4003") +tlv("8C", "51818283")))),"create DF CF00")
 	udp_apdu_send(hex_to_bytes("00e0 0000" + len_val(tlv("62",tlv("83", "DF00") +tlv("82", "38") +tlv("8A", "01") +tlv("8D", "4003") +tlv("8C", "26818283")))),"create DF DF00")
 	udp_apdu_send(hex_to_bytes("00e0 0000" + len_val(tlv("62",tlv("83", "EF00") +tlv("82", "38") +tlv("8A", "01") +tlv("8D", "4003") +tlv("8C", "2E81828384")))),"create DF EF00")
-
+	udp_apdu_send(hex_to_bytes("80fe 0000"), "terminate card usage")
+	
 	udp_disconnect()
 
 main()
